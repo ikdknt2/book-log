@@ -3,169 +3,417 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>マイ本棚</title>
-  <!-- Supabase JS SDK -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <title>マイ読書本棚</title>
+  <!-- Supabaseを使う場合はコメントアウトを解除 -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script> -->
   <style>
-    * { box-sizing: border-box; font-family: sans-serif; }
-    body { background-color: #f4f6f8; margin: 0; padding: 20px; color: #333; }
-    h1 { text-align: center; color: #2c3e50; }
+    :root {
+      --bg-color: #f4f1ea;
+      --card-bg: #ffffff;
+      --shelf-color: #8d6e63;
+      --accent-color: #2e7d32;
+      --text-color: #333333;
+    }
 
-    /* フォーム領域 */
-    .form-container {
-      max-width: 500px;
-      margin: 0 auto 30px;
-      background: white;
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
       padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    .form-group { margin-bottom: 15px; }
-    label { display: block; margin-bottom: 5px; font-weight: bold; }
-    input[type="text"], select, textarea {
-      width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;
-    }
-    textarea { height: 80px; resize: vertical; }
-    button {
-      width: 100%; padding: 10px; background: #3498db; color: white;
-      border: none; border-radius: 4px; font-size: 16px; cursor: pointer;
-    }
-    button:hover { background: #2980b9; }
-
-    /* 本棚（グリッド表示） */
-    .bookshelf {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 20px;
-      max-width: 1000px;
+      max-width: 1200px;
       margin: 0 auto;
     }
-    .book-card {
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #d7ccc8;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      color: #4e342e;
+    }
+
+    .btn-primary {
+      background-color: var(--accent-color);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background-color 0.2s;
+    }
+
+    .btn-primary:hover {
+      background-color: #1b5e20;
+    }
+
+    /* 追加フォーム（モーダル） */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-content {
       background: white;
-      border-radius: 8px;
-      padding: 15px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding: 25px;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      position: relative;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #888;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.95rem;
+    }
+
+    .form-group textarea {
+      height: 90px;
+      resize: vertical;
+    }
+
+    /* 本棚（グリッドレイアウト） */
+    .bookshelf {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 25px 20px;
+      padding: 20px 0;
+    }
+
+    .book-item {
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      align-items: center;
     }
-    .book-title { font-weight: bold; font-size: 1.1em; margin-bottom: 8px; color: #2c3e50; }
-    .book-rating { color: #f39c12; font-size: 1.1em; margin-bottom: 8px; }
-    .book-review { font-size: 0.9em; color: #555; white-space: pre-wrap; background: #f9f9f9; padding: 8px; border-radius: 4px; }
+
+    .book-item:hover {
+      transform: translateY(-5px);
+    }
+
+    .cover-wrapper {
+      width: 100%;
+      aspect-ratio: 1 / 1.4; /* 本の一般的な縦横比 */
+      background-color: #e0e0e0;
+      border-radius: 4px 8px 8px 4px;
+      overflow: hidden;
+      box-shadow: 3px 3px 8px rgba(0,0,0,0.2);
+      position: relative;
+    }
+
+    .cover-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .dummy-cover {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      text-align: center;
+      font-weight: bold;
+      font-size: 0.85rem;
+      background: linear-gradient(135deg, #a1887f, #6d4c41);
+      color: white;
+      box-sizing: border-box;
+    }
+
+    .book-title-sub {
+      margin-top: 8px;
+      font-size: 0.85rem;
+      font-weight: bold;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: 100%;
+    }
+
+    .book-rating-sub {
+      font-size: 0.8rem;
+      color: #f39c12;
+      margin-top: 2px;
+    }
+
+    /* 詳細モーダル */
+    .detail-container {
+      display: flex;
+      gap: 20px;
+    }
+
+    .detail-cover {
+      width: 120px;
+      aspect-ratio: 1 / 1.4;
+      flex-shrink: 0;
+      border-radius: 4px;
+      box-shadow: 2px 2px 6px rgba(0,0,0,0.2);
+      object-fit: cover;
+    }
+
+    .detail-info {
+      flex-grow: 1;
+    }
+
+    .detail-title {
+      font-size: 1.2rem;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    .detail-rating {
+      color: #f39c12;
+      font-size: 1.1rem;
+      margin-bottom: 12px;
+    }
+
+    .detail-review {
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: #444;
+      white-space: pre-wrap;
+      background-color: #f9f9f9;
+      padding: 10px;
+      border-radius: 6px;
+      max-height: 150px;
+      overflow-y: auto;
+    }
   </style>
 </head>
 <body>
 
-  <h1>📚 読書記録ライブラリ</h1>
+  <header>
+    <h1>📚 My Bookshelf</h1>
+    <button class="btn-primary" onclick="openAddModal()">＋ 本を追加する</button>
+  </header>
 
-  <!-- 登録フォーム -->
-  <div class="form-container">
-    <div class="form-group">
-      <label for="title">本のタイトル</label>
-      <input type="text" id="title" placeholder="例: 吾輩は猫である" required>
+  <!-- 本棚表示エリア -->
+  <main>
+    <div class="bookshelf" id="bookshelf">
+      <!-- JSで動的に追加されます -->
     </div>
-    <div class="form-group">
-      <label for="rating">評価 (★1〜10)</label>
-      <select id="rating">
-        <option value="10">★10 (最高)</option>
-        <option value="9">★9</option>
-        <option value="8">★8</option>
-        <option value="7">★7</option>
-        <option value="6">★6</option>
-        <option value="5" selected>★5 (普通)</option>
-        <option value="4">★4</option>
-        <option value="3">★3</option>
-        <option value="2">★2</option>
-        <option value="1">★1</option>
-      </select>
+  </main>
+
+  <!-- 本追加モーダル -->
+  <div class="modal-overlay" id="addModal">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeAddModal()">&times;</button>
+      <h2 style="margin-bottom: 15px;">新しい本を記録</h2>
+      <form id="addBookForm" onsubmit="handleAddBook(event)">
+        <div class="form-group">
+          <label for="title">タイトル *</label>
+          <input type="text" id="title" placeholder="例: 思考の整理学" required>
+        </div>
+        <div class="form-group">
+          <label for="coverUrl">表紙画像URL (任意)</label>
+          <input type="url" id="coverUrl" placeholder="https://example.com/cover.jpg">
+        </div>
+        <div class="form-group">
+          <label for="rating">評価 (★1〜10)</label>
+          <select id="rating">
+            <option value="10">★10 - 最高</option>
+            <option value="9">★9</option>
+            <option value="8">★8</option>
+            <option value="7">★7</option>
+            <option value="6">★6</option>
+            <option value="5" selected>★5 - 普通</option>
+            <option value="4">★4</option>
+            <option value="3">★3</option>
+            <option value="2">★2</option>
+            <option value="1">★1</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="review">感想・メモ</label>
+          <textarea id="review" placeholder="印象に残ったフレーズや感想..."></textarea>
+        </div>
+        <button type="submit" class="btn-primary" style="width: 100%;">本棚に並べる</button>
+      </form>
     </div>
-    <div class="form-group">
-      <label for="review">感想</label>
-      <textarea id="review" placeholder="感想やメモを自由に記入..."></textarea>
-    </div>
-    <button onclick="addBook()">本棚に追加する</button>
   </div>
 
-  <!-- 本一覧表示エリア -->
-  <div class="bookshelf" id="bookshelf">
-    <!-- JSでここにカードが動的挿入されます -->
+  <!-- 詳細確認モーダル -->
+  <div class="modal-overlay" id="detailModal">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeDetailModal()">&times;</button>
+      <div class="detail-container">
+        <div id="detailCoverContainer"></div>
+        <div class="detail-info">
+          <div class="detail-title" id="detailTitle"></div>
+          <div class="detail-rating" id="detailRating"></div>
+          <div class="detail-review" id="detailReview"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
-    // 1. Supabaseの初期設定（ご自身のキーに置き換えてください）
-    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-    const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    // ページ読み込み時にデータを取得
-    window.onload = fetchBooks;
-
-    // 2. 本データの取得処理
-    async function fetchBooks() {
-      const { data, error } = await supabase
-        .from('books')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('取得エラー:', error);
-        return;
+    // --- データ管理（初期状態はLocalStorageを使用） ---
+    let booksData = JSON.parse(localStorage.getItem('my_bookshelf_data')) || [
+      {
+        id: '1',
+        title: 'サンプル本',
+        coverUrl: '',
+        rating: 8,
+        review: 'これはサンプルの感想です。本をクリックすると詳細が見られます！'
       }
+    ];
 
-      renderBooks(data);
-    }
+    window.onload = () => {
+      renderBookshelf();
+    };
 
-    // 3. 画面にカードを描画する処理
-    function renderBooks(books) {
+    // 本棚の描画処理
+    function renderBookshelf() {
       const container = document.getElementById('bookshelf');
       container.innerHTML = '';
 
-      books.forEach(book => {
-        const card = document.createElement('div');
-        card.className = 'book-card';
-        card.innerHTML = `
-          <div>
-            <div class="book-title">${escapeHtml(book.title)}</div>
-            <div class="book-rating">★ ${book.rating} / 10</div>
-            <div class="book-review">${escapeHtml(book.review || '')}</div>
+      booksData.forEach(book => {
+        const item = document.createElement('div');
+        item.className = 'book-item';
+        item.onclick = () => openDetailModal(book);
+
+        // 表紙画像（URLが無い場合はダミーデザイン）
+        const coverHtml = book.coverUrl 
+          ? `<img src="${escapeHtml(book.coverUrl)}" class="cover-image" alt="${escapeHtml(book.title)}">`
+          : `<div class="dummy-cover">${escapeHtml(book.title)}</div>`;
+
+        item.innerHTML = `
+          <div class="cover-wrapper">
+            ${coverHtml}
           </div>
+          <div class="book-title-sub">${escapeHtml(book.title)}</div>
+          <div class="book-rating-sub">★ ${book.rating}/10</div>
         `;
-        container.appendChild(card);
+
+        container.appendChild(item);
       });
     }
 
-    // 4. 新しい本の追加処理
-    async function addBook() {
-      const title = document.getElementById('title').value.trim();
-      const rating = parseInt(document.getElementById('rating').value);
-      const review = document.getElementById('review').value.trim();
+    // 本の追加処理
+    async function handleAddBook(event) {
+      event.preventDefault();
 
-      if (!title) {
-        alert('タイトルを入力してください');
-        return;
-      }
+      const newBook = {
+        id: Date.now().toString(),
+        title: document.getElementById('title').value.trim(),
+        coverUrl: document.getElementById('coverUrl').value.trim(),
+        rating: parseInt(document.getElementById('rating').value),
+        review: document.getElementById('review').value.trim(),
+        created_at: new Date().toISOString()
+      };
 
+      // --- LocalStorage保存 ---
+      booksData.unshift(newBook);
+      localStorage.setItem('my_bookshelf_data', JSON.stringify(booksData));
+
+      /* --- Supabaseに切り替える際はこちらのコードを使用 ---
       const { data, error } = await supabase
         .from('books')
-        .insert([{ title, rating, review }]);
+        .insert([{
+          title: newBook.title,
+          cover_url: newBook.coverUrl,
+          rating: newBook.rating,
+          review: newBook.review
+        }]);
+      */
 
-      if (error) {
-        alert('追加に失敗しました');
-        console.error('追加エラー:', error);
-      } else {
-        // フォームをクリアして再読み込み
-        document.getElementById('title').value = '';
-        document.getElementById('review').value = '';
-        document.getElementById('rating').value = '5';
-        fetchBooks();
-      }
+      // フォームの初期化と閉じる処理
+      document.getElementById('addBookForm').reset();
+      closeAddModal();
+      renderBookshelf();
     }
 
-    // XSS対策（テキストの安全なエスケープ処理）
+    // モーダル制御
+    function openAddModal() {
+      document.getElementById('addModal').classList.add('active');
+    }
+
+    function closeAddModal() {
+      document.getElementById('addModal').classList.remove('active');
+    }
+
+    function openDetailModal(book) {
+      document.getElementById('detailTitle').innerText = book.title;
+      document.getElementById('detailRating').innerText = `★ ${book.rating} / 10`;
+      document.getElementById('detailReview').innerText = book.review || '感想は登録されていません。';
+
+      const coverContainer = document.getElementById('detailCoverContainer');
+      coverContainer.innerHTML = book.coverUrl 
+        ? `<img src="${escapeHtml(book.coverUrl)}" class="detail-cover">`
+        : `<div class="dummy-cover detail-cover">${escapeHtml(book.title)}</div>`;
+
+      document.getElementById('detailModal').classList.add('active');
+    }
+
+    function closeDetailModal() {
+      document.getElementById('detailModal').classList.remove('active');
+    }
+
+    // エスケープ関数
     function escapeHtml(str) {
-      return str.replace(/[&<>"']/g, function(m) {
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
-      });
+      return str.replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+      })[m]);
     }
   </script>
 </body>
