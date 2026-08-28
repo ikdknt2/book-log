@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>マイ読書本棚</title>
-  <!-- Supabaseを使う場合はコメントアウトを解除 -->
+  <!-- Supabase SDK の読み込み -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
@@ -149,7 +149,7 @@
 
     .cover-wrapper {
       width: 100%;
-      aspect-ratio: 1 / 1.4; /* 本の一般的な縦横比 */
+      aspect-ratio: 1 / 1.4;
       background-color: #e0e0e0;
       border-radius: 4px 8px 8px 4px;
       overflow: hidden;
@@ -306,9 +306,8 @@
     </div>
   </div>
 
- <script>
+<script>
   // --- Supabaseの設定 ---
-  // ご自身のSupabaseプロジェクトのURLとキーに書き換えてください
   const SUPABASE_URL = 'https://hmvhovuwhgotolklgajt.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhtdmhvdnV3aGdvdG9sa2xnYWp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4OTA4NzksImV4cCI6MjEwMzQ2Njg3OX0.MqlXUiYx2zMV0Z6UEOcVbVM76OKMfB_T60gu57RrOkM';
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -329,11 +328,10 @@
 
     if (error) {
       console.error('データ取得エラー:', error);
-      alert('データの取得に失敗しました');
+      alert('データの取得に失敗しました: ' + error.message);
       return;
     }
 
-    // Supabaseのカラム名(cover_url)を画面用(coverUrl)に揃える
     booksData = data.map(book => ({
       id: book.id,
       title: book.title,
@@ -355,7 +353,6 @@
       item.className = 'book-item';
       item.onclick = () => openDetailModal(book);
 
-      // 表紙画像（URLが無い場合はダミーデザイン）
       const coverHtml = book.coverUrl 
         ? `<img src="${escapeHtml(book.coverUrl)}" class="cover-image" alt="${escapeHtml(book.title)}">`
         : `<div class="dummy-cover">${escapeHtml(book.title)}</div>`;
@@ -381,7 +378,6 @@
     const rating = parseInt(document.getElementById('rating').value);
     const review = document.getElementById('review').value.trim();
 
-    // Supabaseの 'books' テーブルへ保存
     const { data, error } = await supabase
       .from('books')
       .insert([
@@ -399,10 +395,9 @@
       return;
     }
 
-    // フォームのリセットと画面の更新
     document.getElementById('addBookForm').reset();
     closeAddModal();
-    fetchBooks(); // 保存後に最新データを再取得して表示
+    fetchBooks();
   }
 
   // モーダル制御
