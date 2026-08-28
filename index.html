@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>マイ本棚</title>
+  <!-- Supabase JS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { box-sizing: border-box; font-family: sans-serif; }
+    body { background-color: #f4f6f8; margin: 0; padding: 20px; color: #333; }
+    h1 { text-align: center; color: #2c3e50; }
+
+    /* フォーム領域 */
+    .form-container {
+      max-width: 500px;
+      margin: 0 auto 30px;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; font-weight: bold; }
+    input[type="text"], select, textarea {
+      width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;
+    }
+    textarea { height: 80px; resize: vertical; }
+    button {
+      width: 100%; padding: 10px; background: #3498db; color: white;
+      border: none; border-radius: 4px; font-size: 16px; cursor: pointer;
+    }
+    button:hover { background: #2980b9; }
+
+    /* 本棚（グリッド表示） */
+    .bookshelf {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 20px;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    .book-card {
+      background: white;
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .book-title { font-weight: bold; font-size: 1.1em; margin-bottom: 8px; color: #2c3e50; }
+    .book-rating { color: #f39c12; font-size: 1.1em; margin-bottom: 8px; }
+    .book-review { font-size: 0.9em; color: #555; white-space: pre-wrap; background: #f9f9f9; padding: 8px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+  <h1>📚 読書記録ライブラリ</h1>
+
+  <!-- 登録フォーム -->
+  <div class="form-container">
+    <div class="form-group">
+      <label for="title">本のタイトル</label>
+      <input type="text" id="title" placeholder="例: 吾輩は猫である" required>
+    </div>
+    <div class="form-group">
+      <label for="rating">評価 (★1〜10)</label>
+      <select id="rating">
+        <option value="10">★10 (最高)</option>
+        <option value="9">★9</option>
+        <option value="8">★8</option>
+        <option value="7">★7</option>
+        <option value="6">★6</option>
+        <option value="5" selected>★5 (普通)</option>
+        <option value="4">★4</option>
+        <option value="3">★3</option>
+        <option value="2">★2</option>
+        <option value="1">★1</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="review">感想</label>
+      <textarea id="review" placeholder="感想やメモを自由に記入..."></textarea>
+    </div>
+    <button onclick="addBook()">本棚に追加する</button>
+  </div>
+
+  <!-- 本一覧表示エリア -->
+  <div class="bookshelf" id="bookshelf">
+    <!-- JSでここにカードが動的挿入されます -->
+  </div>
+
+  <script>
+    // 1. Supabaseの初期設定（ご自身のキーに置き換えてください）
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+    const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // ページ読み込み時にデータを取得
+    window.onload = fetchBooks;
+
+    // 2. 本データの取得処理
+    async function fetchBooks() {
+      const { data, error } = await supabase
+        .from('books')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('取得エラー:', error);
+        return;
+      }
+
+      renderBooks(data);
+    }
+
+    // 3. 画面にカードを描画する処理
+    function renderBooks(books) {
+      const container = document.getElementById('bookshelf');
+      container.innerHTML = '';
+
+      books.forEach(book => {
+        const card = document.createElement('div');
+        card.className = 'book-card';
+        card.innerHTML = `
+          <div>
+            <div class="book-title">${escapeHtml(book.title)}</div>
+            <div class="book-rating">★ ${book.rating} / 10</div>
+            <div class="book-review">${escapeHtml(book.review || '')}</div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // 4. 新しい本の追加処理
+    async function addBook() {
+      const title = document.getElementById('title').value.trim();
+      const rating = parseInt(document.getElementById('rating').value);
+      const review = document.getElementById('review').value.trim();
+
+      if (!title) {
+        alert('タイトルを入力してください');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('books')
+        .insert([{ title, rating, review }]);
+
+      if (error) {
+        alert('追加に失敗しました');
+        console.error('追加エラー:', error);
+      } else {
+        // フォームをクリアして再読み込み
+        document.getElementById('title').value = '';
+        document.getElementById('review').value = '';
+        document.getElementById('rating').value = '5';
+        fetchBooks();
+      }
+    }
+
+    // XSS対策（テキストの安全なエスケープ処理）
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, function(m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+      });
+    }
+  </script>
+</body>
+</html>
