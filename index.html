@@ -306,115 +306,138 @@
     </div>
   </div>
 
-  <script>
-    // --- データ管理（初期状態はLocalStorageを使用） ---
-    let booksData = JSON.parse(localStorage.getItem('my_bookshelf_data')) || [
-      {
-        id: '1',
-        title: 'サンプル本',
-        coverUrl: '',
-        rating: 8,
-        review: 'これはサンプルの感想です。本をクリックすると詳細が見られます！'
-      }
-    ];
+ <script>
+  // --- Supabaseの設定 ---
+  // ご自身のSupabaseプロジェクトのURLとキーに書き換えてください
+  const SUPABASE_URL = 'https://hmvhovuwhgotolklgajt.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhtdmhvdnV3aGdvdG9sa2xnYWp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4OTA4NzksImV4cCI6MjEwMzQ2Njg3OX0.MqlXUiYx2zMV0Z6UEOcVbVM76OKMfB_T60gu57RrOkM';
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    window.onload = () => {
-      renderBookshelf();
-    };
+  let booksData = [];
 
-    // 本棚の描画処理
-    function renderBookshelf() {
-      const container = document.getElementById('bookshelf');
-      container.innerHTML = '';
+  // 画面が開いたときにSupabaseからデータを取得
+  window.onload = () => {
+    fetchBooks();
+  };
 
-      booksData.forEach(book => {
-        const item = document.createElement('div');
-        item.className = 'book-item';
-        item.onclick = () => openDetailModal(book);
+  // 1. Supabaseから本一覧を取得する処理
+  async function fetchBooks() {
+    const { data, error } = await supabase
+      .from('books')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-        // 表紙画像（URLが無い場合はダミーデザイン）
-        const coverHtml = book.coverUrl 
-          ? `<img src="${escapeHtml(book.coverUrl)}" class="cover-image" alt="${escapeHtml(book.title)}">`
-          : `<div class="dummy-cover">${escapeHtml(book.title)}</div>`;
-
-        item.innerHTML = `
-          <div class="cover-wrapper">
-            ${coverHtml}
-          </div>
-          <div class="book-title-sub">${escapeHtml(book.title)}</div>
-          <div class="book-rating-sub">★ ${book.rating}/10</div>
-        `;
-
-        container.appendChild(item);
-      });
+    if (error) {
+      console.error('データ取得エラー:', error);
+      alert('データの取得に失敗しました');
+      return;
     }
 
-    // 本の追加処理
-    async function handleAddBook(event) {
-      event.preventDefault();
+    // Supabaseのカラム名(cover_url)を画面用(coverUrl)に揃える
+    booksData = data.map(book => ({
+      id: book.id,
+      title: book.title,
+      coverUrl: book.cover_url,
+      rating: book.rating,
+      review: book.review
+    }));
 
-      const newBook = {
-        id: Date.now().toString(),
-        title: document.getElementById('title').value.trim(),
-        coverUrl: document.getElementById('coverUrl').value.trim(),
-        rating: parseInt(document.getElementById('rating').value),
-        review: document.getElementById('review').value.trim(),
-        created_at: new Date().toISOString()
-      };
+    renderBookshelf();
+  }
 
-      // --- LocalStorage保存 ---
-      booksData.unshift(newBook);
-      localStorage.setItem('my_bookshelf_data', JSON.stringify(booksData));
+  // 2. 本棚の描画処理
+  function renderBookshelf() {
+    const container = document.getElementById('bookshelf');
+    container.innerHTML = '';
 
-      /* --- Supabaseに切り替える際はこちらのコードを使用 ---
-      const { data, error } = await supabase
-        .from('books')
-        .insert([{
-          title: newBook.title,
-          cover_url: newBook.coverUrl,
-          rating: newBook.rating,
-          review: newBook.review
-        }]);
-      */
+    booksData.forEach(book => {
+      const item = document.createElement('div');
+      item.className = 'book-item';
+      item.onclick = () => openDetailModal(book);
 
-      // フォームの初期化と閉じる処理
-      document.getElementById('addBookForm').reset();
-      closeAddModal();
-      renderBookshelf();
+      // 表紙画像（URLが無い場合はダミーデザイン）
+      const coverHtml = book.coverUrl 
+        ? `<img src="${escapeHtml(book.coverUrl)}" class="cover-image" alt="${escapeHtml(book.title)}">`
+        : `<div class="dummy-cover">${escapeHtml(book.title)}</div>`;
+
+      item.innerHTML = `
+        <div class="cover-wrapper">
+          ${coverHtml}
+        </div>
+        <div class="book-title-sub">${escapeHtml(book.title)}</div>
+        <div class="book-rating-sub">★ ${book.rating}/10</div>
+      `;
+
+      container.appendChild(item);
+    });
+  }
+
+  // 3. Supabaseへの本追加処理
+  async function handleAddBook(event) {
+    event.preventDefault();
+
+    const title = document.getElementById('title').value.trim();
+    const coverUrl = document.getElementById('coverUrl').value.trim();
+    const rating = parseInt(document.getElementById('rating').value);
+    const review = document.getElementById('review').value.trim();
+
+    // Supabaseの 'books' テーブルへ保存
+    const { data, error } = await supabase
+      .from('books')
+      .insert([
+        { 
+          title: title, 
+          cover_url: coverUrl || null, 
+          rating: rating, 
+          review: review || null 
+        }
+      ]);
+
+    if (error) {
+      console.error('保存エラー:', error);
+      alert('保存に失敗しました: ' + error.message);
+      return;
     }
 
-    // モーダル制御
-    function openAddModal() {
-      document.getElementById('addModal').classList.add('active');
-    }
+    // フォームのリセットと画面の更新
+    document.getElementById('addBookForm').reset();
+    closeAddModal();
+    fetchBooks(); // 保存後に最新データを再取得して表示
+  }
 
-    function closeAddModal() {
-      document.getElementById('addModal').classList.remove('active');
-    }
+  // モーダル制御
+  function openAddModal() {
+    document.getElementById('addModal').classList.add('active');
+  }
 
-    function openDetailModal(book) {
-      document.getElementById('detailTitle').innerText = book.title;
-      document.getElementById('detailRating').innerText = `★ ${book.rating} / 10`;
-      document.getElementById('detailReview').innerText = book.review || '感想は登録されていません。';
+  function closeAddModal() {
+    document.getElementById('addModal').classList.remove('active');
+  }
 
-      const coverContainer = document.getElementById('detailCoverContainer');
-      coverContainer.innerHTML = book.coverUrl 
-        ? `<img src="${escapeHtml(book.coverUrl)}" class="detail-cover">`
-        : `<div class="dummy-cover detail-cover">${escapeHtml(book.title)}</div>`;
+  function openDetailModal(book) {
+    document.getElementById('detailTitle').innerText = book.title;
+    document.getElementById('detailRating').innerText = `★ ${book.rating} / 10`;
+    document.getElementById('detailReview').innerText = book.review || '感想は登録されていません。';
 
-      document.getElementById('detailModal').classList.add('active');
-    }
+    const coverContainer = document.getElementById('detailCoverContainer');
+    coverContainer.innerHTML = book.coverUrl 
+      ? `<img src="${escapeHtml(book.coverUrl)}" class="detail-cover">`
+      : `<div class="dummy-cover detail-cover">${escapeHtml(book.title)}</div>`;
 
-    function closeDetailModal() {
-      document.getElementById('detailModal').classList.remove('active');
-    }
+    document.getElementById('detailModal').classList.add('active');
+  }
 
-    // エスケープ関数
-    function escapeHtml(str) {
-      return str.replace(/[&<>"']/g, m => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
-      })[m]);
-    }
-  </script>
+  function closeDetailModal() {
+    document.getElementById('detailModal').classList.remove('active');
+  }
+
+  // エスケープ関数
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>"']/g, m => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+    })[m]);
+  }
+</script>
 </body>
 </html>
