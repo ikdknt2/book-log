@@ -307,10 +307,14 @@
   </div>
 
 <script>
-  // --- Supabaseの設定 ---
+  // --- Supabaseの設定 (重複宣言を回避する安全な記述法) ---
   const SUPABASE_URL = 'https://hmvhovuwhgotolklgajt.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhtdmhvdnV3aGdvdG9sa2xnYWp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4OTA4NzksImV4cCI6MjEwMzQ2Njg3OX0.MqlXUiYx2zMV0Z6UEOcVbVM76OKMfB_T60gu57RrOkM';
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  
+  if (!window.supabaseClient) {
+    window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+  const db = window.supabaseClient;
 
   let booksData = [];
 
@@ -321,7 +325,7 @@
 
   // 1. Supabaseから本一覧を取得する処理
   async function fetchBooks() {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('books')
       .select('*')
       .order('created_at', { ascending: false });
@@ -369,7 +373,7 @@
     });
   }
 
-  // 3. Supabaseへの本追加処理
+  // 3. Supabaseへの本追加処理 (v2対応の.select()追加)
   async function handleAddBook(event) {
     event.preventDefault();
 
@@ -378,7 +382,7 @@
     const rating = parseInt(document.getElementById('rating').value);
     const review = document.getElementById('review').value.trim();
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('books')
       .insert([
         { 
@@ -387,7 +391,8 @@
           rating: rating, 
           review: review || null 
         }
-      ]);
+      ])
+      .select();
 
     if (error) {
       console.error('保存エラー:', error);
