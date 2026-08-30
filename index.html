@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>マイ読書本棚</title>
-  <!-- Supabase SDK の読み込み -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
@@ -44,13 +43,18 @@
       color: #4e342e;
     }
 
+    .header-buttons {
+      display: flex;
+      gap: 10px;
+    }
+
     .btn-primary {
       background-color: var(--accent-color);
       color: white;
       border: none;
-      padding: 10px 20px;
+      padding: 10px 16px;
       border-radius: 6px;
-      font-size: 1rem;
+      font-size: 0.95rem;
       cursor: pointer;
       font-weight: bold;
       transition: background-color 0.2s;
@@ -60,7 +64,27 @@
       background-color: #1b5e20;
     }
 
-    /* 追加フォーム（モーダル） */
+    .btn-secondary {
+      background-color: #757575;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .btn-secondary:hover {
+      background-color: #616161;
+    }
+
+    /* 非表示用の共通クラス */
+    .hidden {
+      display: none !important;
+    }
+
+    /* モーダル表示 */
     .modal-overlay {
       position: fixed;
       top: 0;
@@ -127,7 +151,7 @@
       resize: vertical;
     }
 
-    /* 本棚（グリッドレイアウト） */
+    /* 本棚レイアウト */
     .bookshelf {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -137,7 +161,7 @@
 
     .book-item {
       cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
+      transition: transform 0.2s;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -154,7 +178,6 @@
       border-radius: 4px 8px 8px 4px;
       overflow: hidden;
       box-shadow: 3px 3px 8px rgba(0,0,0,0.2);
-      position: relative;
     }
 
     .cover-image {
@@ -243,15 +266,39 @@
 
   <header>
     <h1>📚 My Bookshelf</h1>
-    <button class="btn-primary" onclick="openAddModal()">＋ 本を追加する</button>
+    <div class="header-buttons">
+      <!-- 管理者（ログイン中）にだけ表示する「追加」ボタン -->
+      <button id="addBookBtn" class="btn-primary hidden" onclick="openAddModal()">＋ 本を追加する</button>
+      
+      <!-- ログイン / ログアウト 切り替えボタン -->
+      <button id="loginBtn" class="btn-secondary" onclick="openLoginModal()">🔑 管理者ログイン</button>
+      <button id="logoutBtn" class="btn-secondary hidden" onclick="handleLogout()">ログアウト</button>
+    </div>
   </header>
 
-  <!-- 本棚表示エリア -->
+  <!-- 本棚表示エリア（誰でも見られます） -->
   <main>
-    <div class="bookshelf" id="bookshelf">
-      <!-- JSで動的に追加されます -->
-    </div>
+    <div class="bookshelf" id="bookshelf"></div>
   </main>
+
+  <!-- 管理者ログインモーダル -->
+  <div class="modal-overlay" id="loginModal">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeLoginModal()">&times;</button>
+      <h2 style="margin-bottom: 15px;">管理者ログイン</h2>
+      <form onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label for="loginEmail">メールアドレス</label>
+          <input type="email" id="loginEmail" required>
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">パスワード</label>
+          <input type="password" id="loginPassword" required>
+        </div>
+        <button type="submit" class="btn-primary" style="width: 100%;">ログイン</button>
+      </form>
+    </div>
+  </div>
 
   <!-- 本追加モーダル -->
   <div class="modal-overlay" id="addModal">
@@ -307,32 +354,44 @@
   </div>
 
 <script>
-  // --- Supabaseの設定 (重複宣言を回避する安全な記述法) ---
+  // --- Supabase設定 ---
   const SUPABASE_URL = 'https://hmvhovuwhgotolklgajt.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhtdmhvdnV3aGdvdG9sa2xnYWp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4OTA4NzksImV4cCI6MjEwMzQ2Njg3OX0.MqlXUiYx2zMV0Z6UEOcVbVM76OKMfB_T60gu57RrOkM';
-  
-  if (!window.supabaseClient) {
-    window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  }
-  const db = window.supabaseClient;
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   let booksData = [];
 
-  // 画面が開いたときにSupabaseからデータを取得
-  window.onload = () => {
+  // 初期化（ログイン状態の確認＆本棚の読み込み）
+  window.onload = async () => {
     fetchBooks();
+    checkUserSession();
   };
 
-  // 1. Supabaseから本一覧を取得する処理
+  // ログイン状態に応じたUIの切り替え
+  async function checkUserSession() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      // ログイン中：追加ボタンとログアウトボタンを表示
+      document.getElementById('addBookBtn').classList.remove('hidden');
+      document.getElementById('logoutBtn').classList.remove('hidden');
+      document.getElementById('loginBtn').classList.add('hidden');
+    } else {
+      // 未ログイン：閲覧のみ状態
+      document.getElementById('addBookBtn').classList.add('hidden');
+      document.getElementById('logoutBtn').classList.add('hidden');
+      document.getElementById('loginBtn').classList.remove('hidden');
+    }
+  }
+
+  // 1. 本棚データの取得（誰でも可能）
   async function fetchBooks() {
-    const { data, error } = await db
+    const { data, error } = await supabase
       .from('books')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (error) {
       console.error('データ取得エラー:', error);
-      alert('データの取得に失敗しました: ' + error.message);
       return;
     }
 
@@ -347,7 +406,7 @@
     renderBookshelf();
   }
 
-  // 2. 本棚の描画処理
+  // 2. 本棚の描画
   function renderBookshelf() {
     const container = document.getElementById('bookshelf');
     container.innerHTML = '';
@@ -362,9 +421,7 @@
         : `<div class="dummy-cover">${escapeHtml(book.title)}</div>`;
 
       item.innerHTML = `
-        <div class="cover-wrapper">
-          ${coverHtml}
-        </div>
+        <div class="cover-wrapper">${coverHtml}</div>
         <div class="book-title-sub">${escapeHtml(book.title)}</div>
         <div class="book-rating-sub">★ ${book.rating}/10</div>
       `;
@@ -373,7 +430,34 @@
     });
   }
 
-  // 3. Supabaseへの本追加処理 (v2対応の.select()追加)
+  // 3. 管理者ログイン処理
+  async function handleLogin(event) {
+    event.preventDefault();
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password
+    });
+
+    if (error) {
+      alert('ログイン失敗: ' + error.message);
+    } else {
+      closeLoginModal();
+      checkUserSession();
+      alert('管理者としてログインしました。本を追加できます。');
+    }
+  }
+
+  // 4. ログアウト処理
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    checkUserSession();
+    alert('ログアウトしました。');
+  }
+
+  // 5. 本の保存処理（ログイン中の自分のみ成功します）
   async function handleAddBook(event) {
     event.preventDefault();
 
@@ -382,7 +466,7 @@
     const rating = parseInt(document.getElementById('rating').value);
     const review = document.getElementById('review').value.trim();
 
-    const { data, error } = await db
+    const { data, error } = await supabase
       .from('books')
       .insert([
         { 
@@ -391,8 +475,7 @@
           rating: rating, 
           review: review || null 
         }
-      ])
-      .select();
+      ]);
 
     if (error) {
       console.error('保存エラー:', error);
@@ -405,14 +488,12 @@
     fetchBooks();
   }
 
-  // モーダル制御
-  function openAddModal() {
-    document.getElementById('addModal').classList.add('active');
-  }
-
-  function closeAddModal() {
-    document.getElementById('addModal').classList.remove('active');
-  }
+  // モーダル操作関数
+  function openAddModal() { document.getElementById('addModal').classList.add('active'); }
+  function closeAddModal() { document.getElementById('addModal').classList.remove('active'); }
+  
+  function openLoginModal() { document.getElementById('loginModal').classList.add('active'); }
+  function closeLoginModal() { document.getElementById('loginModal').classList.remove('active'); }
 
   function openDetailModal(book) {
     document.getElementById('detailTitle').innerText = book.title;
@@ -427,11 +508,9 @@
     document.getElementById('detailModal').classList.add('active');
   }
 
-  function closeDetailModal() {
-    document.getElementById('detailModal').classList.remove('active');
-  }
+  function closeDetailModal() { document.getElementById('detailModal').classList.remove('active'); }
 
-  // エスケープ関数
+  // HTMLエスケープ処理
   function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/[&<>"']/g, m => ({
