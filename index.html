@@ -357,7 +357,7 @@
   // --- Supabase設定 ---
   const SUPABASE_URL = 'https://hmvhovuwhgotolklgajt.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhtdmhvdnV3aGdvdG9sa2xnYWp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4OTA4NzksImV4cCI6MjEwMzQ2Njg3OX0.MqlXUiYx2zMV0Z6UEOcVbVM76OKMfB_T60gu57RrOkM';
-  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const supabase_client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   let booksData = [];
 
@@ -369,7 +369,7 @@
 
   // ログイン状態に応じたUIの切り替え
   async function checkUserSession() {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await supabase_client.auth.getSession();
     if (session) {
       // ログイン中：追加ボタンとログアウトボタンを表示
       document.getElementById('addBookBtn').classList.remove('hidden');
@@ -385,7 +385,7 @@
 
   // 1. 本棚データの取得（誰でも可能）
   async function fetchBooks() {
-    const { data, error } = await supabase
+    const { data, error } = await supabase_client
       .from('books')
       .select('*')
       .order('created_at', { ascending: false });
@@ -436,7 +436,7 @@
     const email = document.getElementById('loginEmail').value.trim();
     const password = document.getElementById('loginPassword').value.trim();
 
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase_client.auth.signInWithPassword({
       email: email,
       password: password
     });
@@ -452,7 +452,7 @@
 
   // 4. ログアウト処理
   async function handleLogout() {
-    await supabase.auth.signOut();
+    await supabase_client.auth.signOut();
     checkUserSession();
     alert('ログアウトしました。');
   }
@@ -462,7 +462,7 @@
     event.preventDefault();
 
     // 現在ログインしているユーザーの情報を取得
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await supabase_client.auth.getSession();
     if (!session) {
       alert('ログインが必要です。');
       return;
@@ -473,7 +473,7 @@
     const rating = parseInt(document.getElementById('rating').value);
     const review = document.getElementById('review').value.trim();
 
-    const { data, error } = await supabase
+    const { data, error } = await supabase_client
       .from('books')
       .insert([
         { 
