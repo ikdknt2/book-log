@@ -12,7 +12,7 @@
       --accent-color: #2e7d32;
       --danger-color: #c62828;
       --text-color: #333333;
-      --book-width: 140px; /* デフォルトの書影サイズ */
+      --book-width: 140px;
     }
 
     * {
@@ -47,14 +47,13 @@
     .header-buttons {
       display: flex;
       gap: 10px;
+      align-items: center;
     }
 
-    /* ツールバー（サイズ調節用コントロール） */
     .toolbar {
       display: flex;
-      justify-content: flex-end;
+      justify-content: space-between;
       align-items: center;
-      gap: 12px;
       margin-bottom: 15px;
       padding: 8px 12px;
       background: rgba(255, 255, 255, 0.6);
@@ -119,7 +118,7 @@
       display: none !important;
     }
 
-    /* モーダル表示 */
+    /* モーダル */
     .modal-overlay {
       position: fixed;
       top: 0;
@@ -205,7 +204,7 @@
       border-radius: 4px;
     }
 
-    /* 本棚：CSS変数の --book-width を使用して動的にグリッド幅を決定 */
+    /* 本棚グリッド */
     .bookshelf {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(var(--book-width), 1fr));
@@ -271,7 +270,7 @@
       margin-top: 2px;
     }
 
-    /* 詳細表示 */
+    /* 詳細ダイアログ */
     .detail-container {
       display: flex;
       gap: 20px;
@@ -333,14 +332,15 @@
   <header>
     <h1>📚 My Bookshelf</h1>
     <div class="header-buttons">
+      <button id="myShelfBtn" class="btn-secondary hidden" onclick="goToMyShelf()">自分の本棚へ</button>
       <button id="addBookBtn" class="btn-primary hidden" onclick="openAddModal()">＋ 本を追加する</button>
-      <button id="loginBtn" class="btn-secondary" onclick="openLoginModal()">🔑 管理者ログイン</button>
+      <button id="loginBtn" class="btn-secondary" onclick="openLoginModal()">🔑 ログイン / 登録</button>
       <button id="logoutBtn" class="btn-secondary hidden" onclick="handleLogout()">ログアウト</button>
     </div>
   </header>
 
-  <!-- 表示サイズ変更スライダー -->
   <div class="toolbar">
+    <div id="shelfOwnerText">本棚を表示中...</div>
     <div class="size-slider-group">
       <label for="sizeRange">📖 表示サイズ:</label>
       <input type="range" id="sizeRange" min="80" max="250" value="140" oninput="updateBookSize(this.value)">
@@ -352,22 +352,26 @@
     <div class="bookshelf" id="bookshelf"></div>
   </main>
 
-  <!-- ログインモーダル -->
+  <!-- ログイン / 新規登録モーダル -->
   <div class="modal-overlay" id="loginModal">
     <div class="modal-content">
       <button class="modal-close" onclick="closeLoginModal()">&times;</button>
-      <h2 style="margin-bottom: 15px;">管理者ログイン</h2>
-      <form onsubmit="handleLogin(event)">
+      <h2 id="authModalTitle" style="margin-bottom: 15px;">ログイン</h2>
+      <form id="authForm" onsubmit="handleAuth(event)">
         <div class="form-group">
           <label for="loginEmail">メールアドレス</label>
           <input type="email" id="loginEmail" required>
         </div>
         <div class="form-group">
           <label for="loginPassword">パスワード</label>
-          <input type="password" id="loginPassword" required>
+          <input type="password" id="loginPassword" required minlength="6">
         </div>
-        <button type="submit" class="btn-primary" style="width: 100%;">ログイン</button>
+        <button type="submit" id="authSubmitBtn" class="btn-primary" style="width: 100%;">ログイン</button>
       </form>
+      <div style="margin-top: 15px; text-align: center; font-size: 0.85rem;">
+        <span id="authToggleText">アカウントをお持ちでないですか？</span>
+        <a href="#" id="authToggleLink" onclick="toggleAuthMode(event)" style="color: var(--accent-color); font-weight: bold;">新規登録はこちら</a>
+      </div>
     </div>
   </div>
 
@@ -477,39 +481,74 @@
 
   let booksData = [];
   let currentBook = null;
+  let targetUserId = null;
+  let currentSessionUser = null;
+  let isSignUpMode = false;
 
   window.onload = async () => {
-    // ローカルストレージに保存された設定サイズがあれば復元
     const savedSize = localStorage.getItem('bookshelf_item_size');
     if (savedSize) {
       document.getElementById('sizeRange').value = savedSize;
       updateBookSize(savedSize);
     }
 
+    const urlParams = new URLSearchParams(window.location.search);
+    targetUserId = urlParams.get('user');
+
+    const { data: { session } } = await supabase_client.auth.getSession();
+    currentSessionUser = session ? session.user : null;
+
+    if (!targetUserId && currentSessionUser) {
+      targetUserId = currentSessionUser.id;
+      const newUrl = `${window.location.pathname}?user=${targetUserId}`;
+      window.history.replaceState(null, '', newUrl);
+    }
+
+    updateUI();
     fetchBooks();
-    checkUserSession();
     document.getElementById('isbn').addEventListener('blur', lookupIsbn);
   };
 
-  // 書影サイズの動的変更関数
   function updateBookSize(val) {
     document.documentElement.style.setProperty('--book-width', `${val}px`);
     document.getElementById('sizeValue').innerText = `${val}px`;
     localStorage.setItem('bookshelf_item_size', val);
   }
 
-  async function checkUserSession() {
-    const { data: { session } } = await supabase_client.auth.getSession();
-    if (session) {
-      document.getElementById('addBookBtn').classList.remove('hidden');
-      document.getElementById('logoutBtn').classList.remove('hidden');
+  function updateUI() {
+    const isOwner = currentSessionUser && targetUserId === currentSessionUser.id;
+
+    if (currentSessionUser) {
       document.getElementById('loginBtn').classList.add('hidden');
+      document.getElementById('logoutBtn').classList.remove('hidden');
+      
+      if (!isOwner) {
+        document.getElementById('myShelfBtn').classList.remove('hidden');
+      } else {
+        document.getElementById('myShelfBtn').classList.add('hidden');
+      }
+    } else {
+      document.getElementById('loginBtn').classList.remove('hidden');
+      document.getElementById('logoutBtn').classList.add('hidden');
+      document.getElementById('myShelfBtn').classList.add('hidden');
+    }
+
+    if (isOwner) {
+      document.getElementById('addBookBtn').classList.remove('hidden');
       document.getElementById('adminActions').classList.remove('hidden');
+      document.getElementById('shelfOwnerText').innerText = '自分の本棚を表示中';
     } else {
       document.getElementById('addBookBtn').classList.add('hidden');
-      document.getElementById('logoutBtn').classList.add('hidden');
-      document.getElementById('loginBtn').classList.remove('hidden');
       document.getElementById('adminActions').classList.add('hidden');
+      document.getElementById('shelfOwnerText').innerText = targetUserId 
+        ? `ユーザー (${targetUserId.substring(0, 8)}...) の本棚`
+        : '公開本棚（ユーザー未指定）';
+    }
+  }
+
+  function goToMyShelf() {
+    if (currentSessionUser) {
+      window.location.href = `${window.location.pathname}?user=${currentSessionUser.id}`;
     }
   }
 
@@ -520,12 +559,19 @@
   }
 
   async function fetchBooks() {
-    const { data, error } = await supabase_client
-      .from('books')
-      .select('*')
-      .order('created_at', { ascending: false });
+    let query = supabase_client.from('books').select('*').order('created_at', { ascending: false });
 
-    if (error || !data) return;
+    if (targetUserId) {
+      query = query.eq('user_id', targetUserId);
+    }
+
+    const { data, error } = await query;
+
+    if (error || !data) {
+      booksData = [];
+      renderBookshelf();
+      return;
+    }
 
     const isbns = data.map(b => b.isbn).filter(Boolean);
 
@@ -607,6 +653,11 @@
     const container = document.getElementById('bookshelf');
     container.innerHTML = '';
 
+    if (booksData.length === 0) {
+      container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #888; padding: 40px 0;">まだ本が登録されていません。</div>';
+      return;
+    }
+
     booksData.forEach(book => {
       const item = document.createElement('div');
       item.className = 'book-item';
@@ -629,8 +680,7 @@
   async function handleAddBook(event) {
     event.preventDefault();
 
-    const { data: { session } } = await supabase_client.auth.getSession();
-    if (!session) {
+    if (!currentSessionUser) {
       alert('ログインが必要です。');
       return;
     }
@@ -647,7 +697,7 @@
           isbn: isbn,
           rating: rating, 
           review: review || null,
-          user_id: session.user.id
+          user_id: currentSessionUser.id
         }
       ]);
 
@@ -735,19 +785,70 @@
     fetchBooks();
   }
 
-  async function handleLogin(e) {
+  function toggleAuthMode(e) {
     e.preventDefault();
-    const { error } = await supabase_client.auth.signInWithPassword({
-      email: document.getElementById('loginEmail').value.trim(),
-      password: document.getElementById('loginPassword').value.trim()
-    });
-    if (error) alert('ログイン失敗: ' + error.message);
-    else { closeLoginModal(); checkUserSession(); }
+    isSignUpMode = !isSignUpMode;
+
+    const title = document.getElementById('authModalTitle');
+    const btn = document.getElementById('authSubmitBtn');
+    const text = document.getElementById('authToggleText');
+    const link = document.getElementById('authToggleLink');
+
+    if (isSignUpMode) {
+      title.innerText = '新規アカウント登録';
+      btn.innerText = 'アカウント作成';
+      text.innerText = 'すでにアカウントをお持ちですか？';
+      link.innerText = 'ログインはこちら';
+    } else {
+      title.innerText = 'ログイン';
+      btn.innerText = 'ログイン';
+      text.innerText = 'アカウントをお持ちでないですか？';
+      link.innerText = '新規登録はこちら';
+    }
+  }
+
+  async function handleAuth(e) {
+    e.preventDefault();
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
+
+    if (isSignUpMode) {
+      const { data, error } = await supabase_client.auth.signUp({
+        email: email,
+        password: password
+      });
+
+      if (error) {
+        alert('登録失敗: ' + error.message);
+      } else {
+        alert('仮登録が完了しました！\n入力されたメールアドレスに届いた確認リンクをクリックしてからログインしてください。');
+        isSignUpMode = false;
+        document.getElementById('authModalTitle').innerText = 'ログイン';
+        document.getElementById('authSubmitBtn').innerText = 'ログイン';
+        document.getElementById('authToggleText').innerText = 'アカウントをお持ちでないですか？';
+        document.getElementById('authToggleLink').innerText = '新規登録はこちら';
+      }
+    } else {
+      const { data, error } = await supabase_client.auth.signInWithPassword({
+        email: email,
+        password: password
+      });
+
+      if (error) {
+        alert('ログイン失敗: ' + error.message);
+      } else {
+        currentSessionUser = data.user;
+        closeLoginModal();
+        window.location.href = `${window.location.pathname}?user=${currentSessionUser.id}`;
+      }
+    }
   }
 
   async function handleLogout() {
     await supabase_client.auth.signOut();
-    checkUserSession();
+    currentSessionUser = null;
+    updateUI();
+    fetchBooks();
   }
 
   function openAddModal() { document.getElementById('addModal').classList.add('active'); }
