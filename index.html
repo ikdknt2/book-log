@@ -3,109 +3,187 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>マイ読書本棚</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <title>読書記録・本棚アプリ</title>
   <style>
     :root {
-      --bg-color: #f4f1ea;
+      --bg-color: #f8f9fa;
       --card-bg: #ffffff;
-      --accent-color: #2e7d32;
       --text-color: #333333;
+      --accent-color: #4a90e2;
+      --border-color: #e0e0e0;
     }
 
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: 'Helvetica Neue', Arial, sans-serif;
     }
 
     body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       background-color: var(--bg-color);
       color: var(--text-color);
+      line-height: 1.6;
       padding: 20px;
-      max-width: 1200px;
-      margin: 0 auto;
     }
 
     header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 30px;
-      padding-bottom: 15px;
-      border-bottom: 2px solid #d7ccc8;
+      max-width: 1000px;
+      margin: 0 auto 30px auto;
+      text-align: center;
     }
 
     h1 {
       font-size: 1.8rem;
-      color: #4e342e;
+      margin-bottom: 10px;
     }
 
-    .header-buttons {
-      display: flex;
-      gap: 10px;
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
     }
 
-    .btn-primary {
+    /* 登録フォーム */
+    .form-card {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 30px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 5px;
+      font-size: 0.9rem;
+    }
+
+    .form-group input, .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+
+    .btn {
       background-color: var(--accent-color);
-      color: white;
+      color: #fff;
       border: none;
-      padding: 10px 16px;
-      border-radius: 6px;
-      font-size: 0.95rem;
+      padding: 10px 20px;
+      border-radius: 4px;
       cursor: pointer;
+      font-size: 1rem;
       font-weight: bold;
+      transition: background-color 0.2s;
     }
 
-    .btn-primary:hover {
-      background-color: #1b5e20;
+    .btn:hover {
+      opacity: 0.9;
     }
 
-    .btn-secondary {
-      background-color: #757575;
-      color: white;
-      border: none;
-      padding: 10px 16px;
+    /* 本棚グリッド */
+    .bookshelf-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 20px;
+    }
+
+    .book-item {
+      background: var(--card-bg);
       border-radius: 6px;
-      font-size: 0.95rem;
+      overflow: hidden;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
       cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .book-item:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+
+    .cover-wrapper {
+      width: 100%;
+      height: 200px;
+      background-color: #eee;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .cover-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .dummy-cover {
+      padding: 10px;
+      font-size: 0.8rem;
+      text-align: center;
+      color: #666;
+      word-break: break-all;
+    }
+
+    .book-info {
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+    }
+
+    .book-title-sub {
+      font-size: 0.85rem;
       font-weight: bold;
+      line-height: 1.3;
+      margin-bottom: 5px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
 
-    .hidden {
-      display: none !important;
+    .book-rating-sub {
+      font-size: 0.8rem;
+      color: #f39c12;
+      margin-top: auto;
     }
 
-    /* モーダル表示 */
-    .modal-overlay {
+    /* 詳細モーダル */
+    .modal {
+      display: none;
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
       background: rgba(0,0,0,0.5);
-      display: flex;
-      justify-content: center;
       align-items: center;
+      justify-content: center;
       z-index: 1000;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.2s;
     }
 
-    .modal-overlay.active {
-      opacity: 1;
-      pointer-events: auto;
+    .modal.active {
+      display: flex;
     }
 
     .modal-content {
-      background: white;
+      background: #fff;
       padding: 25px;
-      border-radius: 12px;
-      width: 90%;
+      border-radius: 8px;
       max-width: 500px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
       position: relative;
     }
 
@@ -117,507 +195,260 @@
       border: none;
       font-size: 1.5rem;
       cursor: pointer;
-      color: #888;
     }
 
-    .form-group {
+    .detail-cover-container {
+      text-align: center;
       margin-bottom: 15px;
     }
 
-    .form-group label {
-      display: block;
-      margin-bottom: 5px;
-      font-weight: bold;
-      font-size: 0.9rem;
-    }
-
-    .form-group input, .form-group select, .form-group textarea {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      font-size: 0.95rem;
-    }
-
-    .form-group textarea {
-      height: 90px;
-      resize: vertical;
-    }
-
-    .preview-card {
-      background: #f9f9f9;
-      border: 1px dashed #bbb;
-      padding: 12px;
-      border-radius: 6px;
-      margin-top: 10px;
-      display: flex;
-      gap: 12px;
-      align-items: center;
-    }
-
-    .preview-cover {
-      width: 50px;
-      height: 70px;
-      object-fit: cover;
-      background: #eee;
-      border-radius: 4px;
-    }
-
-    /* 本棚 */
-    .bookshelf {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 25px 20px;
-      padding: 20px 0;
-    }
-
-    .book-item {
-      cursor: pointer;
-      transition: transform 0.2s;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .book-item:hover {
-      transform: translateY(-5px);
-    }
-
-    .cover-wrapper {
-      width: 100%;
-      aspect-ratio: 1 / 1.4;
-      background-color: #e0e0e0;
-      border-radius: 4px 8px 8px 4px;
-      overflow: hidden;
-      box-shadow: 3px 3px 8px rgba(0,0,0,0.2);
-    }
-
-    .cover-image {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .dummy-cover {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 10px;
-      text-align: center;
-      font-weight: bold;
-      font-size: 0.85rem;
-      background: linear-gradient(135deg, #a1887f, #6d4c41);
-      color: white;
-    }
-
-    .book-title-sub {
-      margin-top: 8px;
-      font-size: 0.85rem;
-      font-weight: bold;
-      text-align: center;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      width: 100%;
-    }
-
-    .book-rating-sub {
-      font-size: 0.8rem;
-      color: #f39c12;
-      margin-top: 2px;
-    }
-
-    /* 詳細表示 */
-    .detail-container {
-      display: flex;
-      gap: 20px;
-    }
-
     .detail-cover {
-      width: 120px;
-      aspect-ratio: 1 / 1.4;
-      flex-shrink: 0;
-      border-radius: 4px;
-      box-shadow: 2px 2px 6px rgba(0,0,0,0.2);
-      object-fit: cover;
-    }
-
-    .detail-info {
-      flex-grow: 1;
-    }
-
-    .detail-title {
-      font-size: 1.2rem;
-      font-weight: bold;
-      margin-bottom: 4px;
+      max-height: 250px;
+      object-fit: contain;
     }
 
     .detail-meta {
-      font-size: 0.85rem;
       color: #666;
-      margin-bottom: 8px;
-    }
-
-    .detail-rating {
-      color: #f39c12;
-      font-size: 1.1rem;
-      margin-bottom: 12px;
+      font-size: 0.9rem;
+      margin-bottom: 10px;
     }
 
     .detail-review {
-      font-size: 0.9rem;
-      line-height: 1.5;
-      color: #444;
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid var(--border-color);
       white-space: pre-wrap;
-      background-color: #f9f9f9;
-      padding: 10px;
-      border-radius: 6px;
-      max-height: 150px;
-      overflow-y: auto;
     }
   </style>
+
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
   <header>
-    <h1>📚 My Bookshelf</h1>
-    <div class="header-buttons">
-      <button id="addBookBtn" class="btn-primary hidden" onclick="openAddModal()">＋ 本を追加する</button>
-      <button id="loginBtn" class="btn-secondary" onclick="openLoginModal()">🔑 管理者ログイン</button>
-      <button id="logoutBtn" class="btn-secondary hidden" onclick="handleLogout()">ログアウト</button>
-    </div>
+    <h1>マイ本棚・読書記録</h1>
   </header>
 
-  <main>
-    <div class="bookshelf" id="bookshelf"></div>
-  </main>
-
-  <!-- ログインモーダル -->
-  <div class="modal-overlay" id="loginModal">
-    <div class="modal-content">
-      <button class="modal-close" onclick="closeLoginModal()">&times;</button>
-      <h2 style="margin-bottom: 15px;">管理者ログイン</h2>
-      <form onsubmit="handleLogin(event)">
+  <div class="container">
+    <!-- 本の登録フォーム -->
+    <div class="form-card">
+      <h2>新しい本を登録</h2>
+      <form id="addBookForm">
         <div class="form-group">
-          <label for="loginEmail">メールアドレス</label>
-          <input type="email" id="loginEmail" required>
+          <label for="isbn">ISBNコード（半角数字・ハイフンなし）</label>
+          <input type="text" id="isbn" placeholder="例: 9784834083569" required>
         </div>
         <div class="form-group">
-          <label for="loginPassword">パスワード</label>
-          <input type="password" id="loginPassword" required>
-        </div>
-        <button type="submit" class="btn-primary" style="width: 100%;">ログイン</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- 本追加モーダル -->
-  <div class="modal-overlay" id="addModal">
-    <div class="modal-content">
-      <button class="modal-close" onclick="closeAddModal()">&times;</button>
-      <h2 style="margin-bottom: 15px;">新しい本を記録</h2>
-      <form id="addBookForm" onsubmit="handleAddBook(event)">
-        <div class="form-group">
-          <label for="isbn">ISBN (13桁) *</label>
-          <div style="display: flex; gap: 8px;">
-            <input type="text" id="isbn" placeholder="例: 9784834083569" required>
-            <button type="button" class="btn-secondary" onclick="lookupIsbn()">検索</button>
-          </div>
-          <div id="isbnPreview" class="preview-card hidden">
-            <img id="previewCover" class="preview-cover" src="" alt="">
-            <div>
-              <div id="previewTitle" style="font-weight: bold;"></div>
-              <div id="previewAuthor" style="font-size: 0.85rem; color: #666;"></div>
-            </div>
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="rating">評価 (★1〜10)</label>
-          <select id="rating">
-            <option value="10">★10 - 最高</option>
-            <option value="9">★9</option>
-            <option value="8">★8</option>
-            <option value="7">★7</option>
-            <option value="6">★6</option>
-            <option value="5" selected>★5 - 普通</option>
-            <option value="4">★4</option>
-            <option value="3">★3</option>
-            <option value="2">★2</option>
-            <option value="1">★1</option>
-          </select>
+          <label for="rating">評価 (1〜10)</label>
+          <input type="number" id="rating" min="1" max="10" value="5" required>
         </div>
         <div class="form-group">
           <label for="review">感想・メモ</label>
-          <textarea id="review" placeholder="感想など..."></textarea>
+          <textarea id="review" rows="3" placeholder="本の感想を入力..."></textarea>
         </div>
-        <button type="submit" class="btn-primary" style="width: 100%;">保存する</button>
+        <button type="submit" class="btn">本棚に追加</button>
       </form>
     </div>
+
+    <!-- 本棚一覧 -->
+    <div id="bookshelf" class="bookshelf-grid"></div>
   </div>
 
-  <!-- 詳細モーダル -->
-  <div class="modal-overlay" id="detailModal">
+  <!-- 詳細表示モーダル -->
+  <div id="detailModal" class="modal">
     <div class="modal-content">
-      <button class="modal-close" onclick="closeDetailModal()">&times;</button>
-      <div class="detail-container">
-        <div id="detailCoverContainer"></div>
-        <div class="detail-info">
-          <div class="detail-title" id="detailTitle"></div>
-          <div class="detail-meta" id="detailMeta"></div>
-          <div class="detail-rating" id="detailRating"></div>
-          <div class="detail-review" id="detailReview"></div>
-        </div>
-      </div>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+      <div id="detailCoverContainer" class="detail-cover-container"></div>
+      <h2 id="detailTitle"></h2>
+      <div id="detailMeta" class="detail-meta"></div>
+      <div id="detailRating" style="color: #f39c12; font-weight: bold;"></div>
+      <div id="detailReview" class="detail-review"></div>
     </div>
   </div>
 
-<script>
-  const SUPABASE_URL = 'https://hmvhovuwhgotolklgajt.supabase.co';
-  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhtdmhvdnV3aGdvdG9sa2xnYWp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4OTA4NzksImV4cCI6MjEwMzQ2Njg3OX0.MqlXUiYx2zMV0Z6UEOcVbVM76OKMfB_T60gu57RrOkM';
-  const supabase_client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  <script>
+    // 1. Supabase の初期化（自身のプロジェクトURLとキーに差し替えてください）
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+    const supabase_client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  let booksData = [];
+    let booksData = [];
 
-  window.onload = async () => {
-    fetchBooks();
-    checkUserSession();
-    document.getElementById('isbn').addEventListener('blur', lookupIsbn);
-  };
-
-  async function checkUserSession() {
-    const { data: { session } } = await supabase_client.auth.getSession();
-    if (session) {
-      document.getElementById('addBookBtn').classList.remove('hidden');
-      document.getElementById('logoutBtn').classList.remove('hidden');
-      document.getElementById('loginBtn').classList.add('hidden');
-    } else {
-      document.getElementById('addBookBtn').classList.add('hidden');
-      document.getElementById('logoutBtn').classList.add('hidden');
-      document.getElementById('loginBtn').classList.remove('hidden');
+    // HTMLエスケープヘルパー関数
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     }
-  }
 
-  // openBDレスポンスデータから画像URLを安全に取り出すヘルパー関数
-  function extractCoverUrl(item) {
-    if (!item) return null;
+    // 書影URL抽出関数（openBD + 版元ドットコム補完）
+    function extractCoverUrl(item, isbn) {
+      let url = null;
 
-    let url = null;
+      // 1. openBD の summary.cover から取得
+      if (item && item.summary && item.summary.cover) {
+        url = item.summary.cover;
+      } 
+      // 2. openBD の onix 内から取得
+      else if (item && item.onix && item.onix.CollateralDetail && item.onix.CollateralDetail.SupportingResource) {
+        const resources = item.onix.CollateralDetail.SupportingResource;
+        const coverRes = resources.find(r => r.ResourceContentType === "01" && r.ResourceVersion);
+        if (coverRes && coverRes.ResourceVersion[0] && coverRes.ResourceVersion[0].ResourceLink) {
+          url = coverRes.ResourceVersion[0].ResourceLink;
+        }
+      }
 
-    // 1. summary.cover から取得を試みる
-    if (item.summary && item.summary.cover) {
-      url = item.summary.cover;
-    } 
-    // 2. onix の CollateralDetail から書影画像URLを取得を試みる（仕様書準拠）
-    else if (item.onix && item.onix.CollateralDetail && item.onix.CollateralDetail.SupportingResource) {
-      const resources = item.onix.CollateralDetail.SupportingResource;
-      const coverRes = resources.find(r => r.ResourceContentType === "01" && r.ResourceVersion);
-      if (coverRes && coverRes.ResourceVersion[0] && coverRes.ResourceVersion[0].ResourceLink) {
-        url = coverRes.ResourceVersion[0].ResourceLink;
+      // 3. openBD内にURLがない場合、版元ドットコムの直リンクURLを生成
+      if (!url && isbn) {
+        url = `https://img.hanmoto.com/bd/img/${isbn}.jpg`;
+      }
+
+      // HTTP 通信の場合は HTTPS に自動調整
+      if (url) {
+        url = url.replace(/^http:\/\//, 'https://');
+      }
+
+      return url;
+    }
+
+    // 2. 本のデータ取得 (Supabase + openBD)
+    async function fetchBooks() {
+      try {
+        const { data, error } = await supabase_client
+          .from('books')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        if (!data || data.length === 0) {
+          booksData = [];
+          renderBookshelf();
+          return;
+        }
+
+        const isbns = data.map(b => b.isbn).filter(Boolean);
+
+        // openBD API一括呼び出し
+        const res = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbns.join(',')}`);
+        const openBdData = await res.json();
+
+        // 検索用マップの作成
+        const bdMap = {};
+        if (Array.isArray(openBdData)) {
+          openBdData.forEach(item => {
+            if (item && item.summary && item.summary.isbn) {
+              bdMap[item.summary.isbn] = item;
+            }
+          });
+        }
+
+        // DBデータとAPIデータの結合
+        booksData = data.map(book => {
+          const item = bdMap[book.isbn];
+          const summary = item ? item.summary : {};
+          const coverUrl = extractCoverUrl(item, book.isbn);
+
+          return {
+            id: book.id,
+            isbn: book.isbn,
+            rating: book.rating,
+            review: book.review,
+            title: summary.title || 'タイトル不明',
+            author: summary.author || '',
+            publisher: summary.publisher || '',
+            coverUrl: coverUrl
+          };
+        });
+
+        renderBookshelf();
+      } catch (e) {
+        console.error('データ取得エラー:', e);
       }
     }
 
-    // 3. デフォルトの版元ドットコム直リンクURLをフォールバックとして構築
-    if (!url && item.summary && item.summary.isbn) {
-      url = `https://cover.hanmoto.com/mqable/${item.summary.isbn}.jpg`;
-    }
+    // 3. 本棚の描画
+    function renderBookshelf() {
+      const container = document.getElementById('bookshelf');
+      container.innerHTML = '';
 
-    // HTTP通信の場合は HTTPS に修正（Mixed Contentブロック対策）
-    if (url) {
-      url = url.replace(/^http:\/\//, 'https://');
-    }
-
-    return url;
-  }
-
-  // 1. SupabaseからISBN一覧を取得し、openBD APIから一括で詳細情報を補完
-  async function fetchBooks() {
-    const { data, error } = await supabase_client
-      .from('books')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error || !data) return;
-
-    const isbns = data.map(b => b.isbn).filter(Boolean);
-
-    if (isbns.length === 0) {
-      booksData = [];
-      renderBookshelf();
-      return;
-    }
-
-    try {
-      const res = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbns.join(',')}`);
-      const openBdData = await res.json();
-
-      const bdMap = {};
-      openBdData.forEach(item => {
-        if (item && item.summary) {
-          bdMap[item.summary.isbn] = item;
-        }
-      });
-
-      booksData = data.map(book => {
-        const item = bdMap[book.isbn];
-        const summary = item ? item.summary : {};
-        const coverUrl = extractCoverUrl(item);
-
-        return {
-          id: book.id,
-          isbn: book.isbn,
-          rating: book.rating,
-          review: book.review,
-          title: summary.title || 'タイトル不明',
-          author: summary.author || '',
-          publisher: summary.publisher || '',
-          coverUrl: coverUrl
-        };
-      });
-
-      renderBookshelf();
-    } catch (e) {
-      console.error('openBD取得エラー:', e);
-    }
-  }
-
-  // ISBNプレビュー検索
-  async function lookupIsbn() {
-    const rawIsbn = document.getElementById('isbn').value.trim();
-    const isbn = rawIsbn.replace(/-/g, '');
-
-    if (!isbn || isbn.length < 10) return;
-
-    try {
-      const res = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbn}`);
-      const data = await res.json();
-
-      if (data && data[0]) {
-        const item = data[0];
-        const summary = item.summary;
-        const coverUrl = extractCoverUrl(item);
-
-        document.getElementById('previewTitle').innerText = summary.title;
-        document.getElementById('previewAuthor').innerText = `${summary.author} (${summary.publisher})`;
-        
-        if (coverUrl) {
-          document.getElementById('previewCover').src = coverUrl;
-          document.getElementById('previewCover').style.display = 'block';
-        } else {
-          document.getElementById('previewCover').style.display = 'none';
-        }
-        document.getElementById('isbnPreview').classList.remove('hidden');
-      } else {
-        alert('書誌情報が見つかりませんでした。');
+      if (booksData.length === 0) {
+        container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #888;">本がまだ登録されていません。</p>';
+        return;
       }
-    } catch (err) {
-      console.error(err);
+
+      booksData.forEach(book => {
+        const item = document.createElement('div');
+        item.className = 'book-item';
+        item.onclick = () => openDetailModal(book);
+
+        const coverHtml = book.coverUrl 
+          ? `<img src="${escapeHtml(book.coverUrl)}" class="cover-image" alt="${escapeHtml(book.title)}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'dummy-cover\\'>${escapeHtml(book.title)}</div>';">`
+          : `<div class="dummy-cover">${escapeHtml(book.title)}</div>`;
+
+        item.innerHTML = `
+          <div class="cover-wrapper">${coverHtml}</div>
+          <div class="book-info">
+            <div class="book-title-sub">${escapeHtml(book.title)}</div>
+            <div class="book-rating-sub">★ ${book.rating}/10</div>
+          </div>
+        `;
+
+        container.appendChild(item);
+      });
     }
-  }
 
-  // 2. 本棚の描画
-  function renderBookshelf() {
-    const container = document.getElementById('bookshelf');
-    container.innerHTML = '';
+    // 4. 詳細モーダルの表示
+    function openDetailModal(book) {
+      document.getElementById('detailTitle').innerText = book.title;
+      document.getElementById('detailMeta').innerText = `${book.author} ${book.publisher ? '/ ' + book.publisher : ''}`;
+      document.getElementById('detailRating').innerText = `★ ${book.rating} / 10`;
+      document.getElementById('detailReview').innerText = book.review || '感想はありません。';
 
-    booksData.forEach(book => {
-      const item = document.createElement('div');
-      item.className = 'book-item';
-      item.onclick = () => openDetailModal(book);
+      const coverContainer = document.getElementById('detailCoverContainer');
+      coverContainer.innerHTML = book.coverUrl 
+        ? `<img src="${escapeHtml(book.coverUrl)}" class="detail-cover" alt="${escapeHtml(book.title)}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'dummy-cover\\'>${escapeHtml(book.title)}</div>';">`
+        : `<div class="dummy-cover detail-cover">${escapeHtml(book.title)}</div>`;
 
-      const coverHtml = book.coverUrl 
-        ? `<img src="${escapeHtml(book.coverUrl)}" class="cover-image" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'dummy-cover\'>${escapeHtml(book.title)}</div>';">`
-        : `<div class="dummy-cover">${escapeHtml(book.title)}</div>`;
+      document.getElementById('detailModal').classList.add('active');
+    }
 
-      item.innerHTML = `
-        <div class="cover-wrapper">${coverHtml}</div>
-        <div class="book-title-sub">${escapeHtml(book.title)}</div>
-        <div class="book-rating-sub">★ ${book.rating}/10</div>
-      `;
+    function closeModal() {
+      document.getElementById('detailModal').classList.remove('active');
+    }
 
-      container.appendChild(item);
+    // 5. 新規本の登録イベント
+    document.getElementById('addBookForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const isbn = document.getElementById('isbn').value.trim();
+      const rating = parseInt(document.getElementById('rating').value, 10);
+      const review = document.getElementById('review').value.trim();
+
+      if (!isbn) return;
+
+      try {
+        const { error } = await supabase_client
+          .from('books')
+          .insert([{ isbn, rating, review }]);
+
+        if (error) throw error;
+
+        // フォームのリセットと一覧の更新
+        document.getElementById('addBookForm').reset();
+        await fetchBooks();
+      } catch (e) {
+        console.error('登録エラー:', e);
+        alert('登録に失敗しました。');
+      }
     });
-  }
 
-  // 保存処理
-  async function handleAddBook(event) {
-    event.preventDefault();
-
-    const { data: { session } } = await supabase_client.auth.getSession();
-    if (!session) {
-      alert('ログインが必要です。');
-      return;
-    }
-
-    const rawIsbn = document.getElementById('isbn').value.trim();
-    const isbn = rawIsbn.replace(/-/g, '');
-    const rating = parseInt(document.getElementById('rating').value);
-    const review = document.getElementById('review').value.trim();
-
-    const { error } = await supabase_client
-      .from('books')
-      .insert([
-        { 
-          isbn: isbn,
-          rating: rating, 
-          review: review || null,
-          user_id: session.user.id
-        }
-      ]);
-
-    if (error) {
-      alert('保存失敗: ' + error.message);
-      return;
-    }
-
-    document.getElementById('addBookForm').reset();
-    document.getElementById('isbnPreview').classList.add('hidden');
-    closeAddModal();
-    fetchBooks();
-  }
-
-  // ログイン・ログアウト関連
-  async function handleLogin(e) {
-    e.preventDefault();
-    const { error } = await supabase_client.auth.signInWithPassword({
-      email: document.getElementById('loginEmail').value.trim(),
-      password: document.getElementById('loginPassword').value.trim()
-    });
-    if (error) alert('ログイン失敗: ' + error.message);
-    else { closeLoginModal(); checkUserSession(); }
-  }
-
-  async function handleLogout() {
-    await supabase_client.auth.signOut();
-    checkUserSession();
-  }
-
-  function openAddModal() { document.getElementById('addModal').classList.add('active'); }
-  function closeAddModal() { document.getElementById('addModal').classList.remove('active'); }
-  function openLoginModal() { document.getElementById('loginModal').classList.add('active'); }
-  function closeLoginModal() { document.getElementById('loginModal').classList.remove('active'); }
-
-  function openDetailModal(book) {
-    document.getElementById('detailTitle').innerText = book.title;
-    document.getElementById('detailMeta').innerText = `${book.author} / ${book.publisher}`;
-    document.getElementById('detailRating').innerText = `★ ${book.rating} / 10`;
-    document.getElementById('detailReview').innerText = book.review || '感想なし';
-
-    const coverContainer = document.getElementById('detailCoverContainer');
-    coverContainer.innerHTML = book.coverUrl 
-      ? `<img src="${escapeHtml(book.coverUrl)}" class="detail-cover" onerror="this.onerror=null; this.outerHTML='<div class=\'dummy-cover detail-cover\'>${escapeHtml(book.title)}</div>';">`
-      : `<div class="dummy-cover detail-cover">${escapeHtml(book.title)}</div>`;
-
-    document.getElementById('detailModal').classList.add('active');
-  }
-
-  function closeDetailModal() { document.getElementById('detailModal').classList.remove('active'); }
-
-  function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m]);
-  }
-</script>
+    // 初回ロード時のデータ取得
+    window.addEventListener('DOMContentLoaded', fetchBooks);
+  </script>
 </body>
 </html>
