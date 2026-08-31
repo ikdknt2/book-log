@@ -12,6 +12,7 @@
       --accent-color: #2e7d32;
       --danger-color: #c62828;
       --text-color: #333333;
+      --book-width: 140px; /* デフォルトの書影サイズ */
     }
 
     * {
@@ -33,7 +34,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 30px;
+      margin-bottom: 20px;
       padding-bottom: 15px;
       border-bottom: 2px solid #d7ccc8;
     }
@@ -46,6 +47,31 @@
     .header-buttons {
       display: flex;
       gap: 10px;
+    }
+
+    /* ツールバー（サイズ調節用コントロール） */
+    .toolbar {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 15px;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.6);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      color: #555;
+    }
+
+    .size-slider-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .size-slider-group input[type="range"] {
+      cursor: pointer;
+      width: 120px;
     }
 
     .btn-primary {
@@ -179,12 +205,12 @@
       border-radius: 4px;
     }
 
-    /* 本棚 */
+    /* 本棚：CSS変数の --book-width を使用して動的にグリッド幅を決定 */
     .bookshelf {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(var(--book-width), 1fr));
       gap: 25px 20px;
-      padding: 20px 0;
+      padding: 10px 0;
     }
 
     .book-item {
@@ -312,6 +338,15 @@
       <button id="logoutBtn" class="btn-secondary hidden" onclick="handleLogout()">ログアウト</button>
     </div>
   </header>
+
+  <!-- 表示サイズ変更スライダー -->
+  <div class="toolbar">
+    <div class="size-slider-group">
+      <label for="sizeRange">📖 表示サイズ:</label>
+      <input type="range" id="sizeRange" min="80" max="250" value="140" oninput="updateBookSize(this.value)">
+      <span id="sizeValue">140px</span>
+    </div>
+  </div>
 
   <main>
     <div class="bookshelf" id="bookshelf"></div>
@@ -444,10 +479,24 @@
   let currentBook = null;
 
   window.onload = async () => {
+    // ローカルストレージに保存された設定サイズがあれば復元
+    const savedSize = localStorage.getItem('bookshelf_item_size');
+    if (savedSize) {
+      document.getElementById('sizeRange').value = savedSize;
+      updateBookSize(savedSize);
+    }
+
     fetchBooks();
     checkUserSession();
     document.getElementById('isbn').addEventListener('blur', lookupIsbn);
   };
+
+  // 書影サイズの動的変更関数
+  function updateBookSize(val) {
+    document.documentElement.style.setProperty('--book-width', `${val}px`);
+    document.getElementById('sizeValue').innerText = `${val}px`;
+    localStorage.setItem('bookshelf_item_size', val);
+  }
 
   async function checkUserSession() {
     const { data: { session } } = await supabase_client.auth.getSession();
@@ -613,7 +662,6 @@
     fetchBooks();
   }
 
-  // 編集モーダルの開閉と保存処理
   function openEditModal() {
     if (!currentBook) return;
     document.getElementById('editBookId').value = currentBook.id;
@@ -649,29 +697,36 @@
     fetchBooks();
   }
 
-  // 確認用ISBN入力付きの削除処理
   async function handleDeleteBook() {
     if (!currentBook) return;
 
     const targetIsbn = currentBook.isbn.replace(/-/g, '');
     const inputIsbn = prompt(`誤削除防止のため、この本のISBNコードを入力してください。\n（対象: ${currentBook.title}\n  ISBN: ${targetIsbn}）`);
 
-    if (inputIsbn === null) return; // キャンセルされた場合
+    if (inputIsbn === null) return;
 
-    const cleanInputIsbn = inputIsbn.trim().replace(/-/g, '');
+    const cleanInputIsbn = inputIsbn
+      .replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+      .replace(/[\s-]/g, '');
 
     if (cleanInputIsbn !== targetIsbn) {
       alert('ISBNコードが一致しません。削除をキャンセルしました。');
       return;
     }
 
-    const { error } = await supabase_client
+    const { data, error } = await supabase_client
       .from('books')
       .delete()
-      .eq('id', currentBook.id);
+      .eq('id', currentBook.id)
+      .select();
 
     if (error) {
       alert('削除失敗: ' + error.message);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      alert('削除に失敗しました（権限がないか、すでに削除されています）。SupabaseのRLS設定をご確認ください。');
       return;
     }
 
