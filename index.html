@@ -322,7 +322,7 @@
         <div class="form-group">
           <label for="isbn">ISBN (13桁) *</label>
           <div style="display: flex; gap: 8px;">
-            <input type="text" id="isbn" placeholder="例: 9784004110828" required>
+            <input type="text" id="isbn" placeholder="例: 9784834083569" required>
             <button type="button" class="btn-secondary" onclick="lookupIsbn()">検索</button>
           </div>
           <div id="isbnPreview" class="preview-card hidden">
@@ -399,6 +399,38 @@
     }
   }
 
+  // openBDレスポンスデータから画像URLを安全に取り出すヘルパー関数
+  function extractCoverUrl(item) {
+    if (!item) return null;
+
+    let url = null;
+
+    // 1. summary.cover から取得を試みる
+    if (item.summary && item.summary.cover) {
+      url = item.summary.cover;
+    } 
+    // 2. onix の CollateralDetail から書影画像URLを取得を試みる（仕様書準拠）
+    else if (item.onix && item.onix.CollateralDetail && item.onix.CollateralDetail.SupportingResource) {
+      const resources = item.onix.CollateralDetail.SupportingResource;
+      const coverRes = resources.find(r => r.ResourceContentType === "01" && r.ResourceVersion);
+      if (coverRes && coverRes.ResourceVersion[0] && coverRes.ResourceVersion[0].ResourceLink) {
+        url = coverRes.ResourceVersion[0].ResourceLink;
+      }
+    }
+
+    // 3. デフォルトの版元ドットコム直リンクURLをフォールバックとして構築
+    if (!url && item.summary && item.summary.isbn) {
+      url = `https://cover.hanmoto.com/mqable/${item.summary.isbn}.jpg`;
+    }
+
+    // HTTP通信の場合は HTTPS に修正（Mixed Contentブロック対策）
+    if (url) {
+      url = url.replace(/^http:\/\//, 'https://');
+    }
+
+    return url;
+  }
+
   // 1. SupabaseからISBN一覧を取得し、openBD APIから一括で詳細情報を補完
   async function fetchBooks() {
     const { data, error } = await supabase_client
@@ -416,31 +448,31 @@
       return;
     }
 
-    // openBD APIはカンマ区切りで複数のISBNを一括取得可能
     try {
       const res = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbns.join(',')}`);
       const openBdData = await res.json();
 
-      // ISBNをキーにしたマップを作成
       const bdMap = {};
       openBdData.forEach(item => {
         if (item && item.summary) {
-          bdMap[item.summary.isbn] = item.summary;
+          bdMap[item.summary.isbn] = item;
         }
       });
 
-      // SupabaseのデータとopenBDの書誌情報を結合
       booksData = data.map(book => {
-        const info = bdMap[book.isbn] || {};
+        const item = bdMap[book.isbn];
+        const summary = item ? item.summary : {};
+        const coverUrl = extractCoverUrl(item);
+
         return {
           id: book.id,
           isbn: book.isbn,
           rating: book.rating,
           review: book.review,
-          title: info.title || 'タイトル不明',
-          author: info.author || '',
-          publisher: info.publisher || '',
-          coverUrl: info.cover || null
+          title: summary.title || 'タイトル不明',
+          author: summary.author || '',
+          publisher: summary.publisher || '',
+          coverUrl: coverUrl
         };
       });
 
@@ -462,11 +494,15 @@
       const data = await res.json();
 
       if (data && data[0]) {
-        const summary = data[0].summary;
+        const item = data[0];
+        const summary = item.summary;
+        const coverUrl = extractCoverUrl(item);
+
         document.getElementById('previewTitle').innerText = summary.title;
         document.getElementById('previewAuthor').innerText = `${summary.author} (${summary.publisher})`;
-        if (summary.cover) {
-          document.getElementById('previewCover').src = summary.cover;
+        
+        if (coverUrl) {
+          document.getElementById('previewCover').src = coverUrl;
           document.getElementById('previewCover').style.display = 'block';
         } else {
           document.getElementById('previewCover').style.display = 'none';
@@ -491,7 +527,7 @@
       item.onclick = () => openDetailModal(book);
 
       const coverHtml = book.coverUrl 
-        ? `<img src="${escapeHtml(book.coverUrl)}" class="cover-image">`
+        ? `<img src="${escapeHtml(book.coverUrl)}" class="cover-image" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'dummy-cover\'>${escapeHtml(book.title)}</div>';">`
         : `<div class="dummy-cover">${escapeHtml(book.title)}</div>`;
 
       item.innerHTML = `
@@ -504,7 +540,7 @@
     });
   }
 
-  // 保存処理（ISBN、評価、感想、user_id のみ保存）
+  // 保存処理
   async function handleAddBook(event) {
     event.preventDefault();
 
@@ -570,7 +606,7 @@
 
     const coverContainer = document.getElementById('detailCoverContainer');
     coverContainer.innerHTML = book.coverUrl 
-      ? `<img src="${escapeHtml(book.coverUrl)}" class="detail-cover">`
+      ? `<img src="${escapeHtml(book.coverUrl)}" class="detail-cover" onerror="this.onerror=null; this.outerHTML='<div class=\'dummy-cover detail-cover\'>${escapeHtml(book.title)}</div>';">`
       : `<div class="dummy-cover detail-cover">${escapeHtml(book.title)}</div>`;
 
     document.getElementById('detailModal').classList.add('active');
