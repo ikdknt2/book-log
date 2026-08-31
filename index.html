@@ -458,8 +458,15 @@
   }
 
   // 5. 本の保存処理（ログイン中の自分のみ成功します）
-  async function handleAddBook(event) {
+ async function handleAddBook(event) {
     event.preventDefault();
+
+    // 現在ログインしているユーザーの情報を取得
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      alert('ログインが必要です。');
+      return;
+    }
 
     const title = document.getElementById('title').value.trim();
     const coverUrl = document.getElementById('coverUrl').value.trim();
@@ -473,9 +480,21 @@
           title: title, 
           cover_url: coverUrl || null, 
           rating: rating, 
-          review: review || null 
+          review: review || null,
+          user_id: session.user.id // ★ ここにログインユーザーのUIDを追加！
         }
       ]);
+
+    if (error) {
+      console.error('保存エラー:', error);
+      alert('保存に失敗しました: ' + error.message);
+      return;
+    }
+
+    document.getElementById('addBookForm').reset();
+    closeAddModal();
+    fetchBooks();
+  }
 
     if (error) {
       console.error('保存エラー:', error);
