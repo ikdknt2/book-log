@@ -399,39 +399,14 @@
     }
   }
 
-  // openBDレスポンスデータから画像URLを安全に取り出すヘルパー関数（hanmoto.comロジック保持）
-  function extractCoverUrl(item) {
-    if (!item) return null;
-
-    let url = null;
-
-    // 1. summary.cover から取得を試みる
-    if (item.summary && item.summary.cover) {
-      url = item.summary.cover;
-    } 
-    // 2. onix の CollateralDetail から書影画像URLを取得を試みる
-    else if (item.onix && item.onix.CollateralDetail && item.onix.CollateralDetail.SupportingResource) {
-      const resources = item.onix.CollateralDetail.SupportingResource;
-      const coverRes = resources.find(r => r.ResourceContentType === "01" && r.ResourceVersion);
-      if (coverRes && coverRes.ResourceVersion[0] && coverRes.ResourceVersion[0].ResourceLink) {
-        url = coverRes.ResourceVersion[0].ResourceLink;
-      }
-    }
-
-    // 3. デフォルトの版元ドットコム直リンクURLをフォールバックとして構築
-    if (!url && item.summary && item.summary.isbn) {
-      url = `https://cover.hanmoto.com/mqable/${item.summary.isbn}.jpg`;
-    }
-
-    // HTTP通信の場合は HTTPS に修正（Mixed Contentブロック対策）
-    if (url) {
-      url = url.replace(/^http:\/\//, 'https://');
-    }
-
-    return url;
+  // 版元ドットコムの直リンクURLを生成する関数（openBDの画像判定を使わない）
+  function extractCoverUrl(isbn) {
+    if (!isbn) return null;
+    const cleanIsbn = isbn.toString().replace(/-/g, '').trim();
+    return cleanIsbn ? `https://cover.hanmoto.com/mqable/${cleanIsbn}.jpg` : null;
   }
 
-  // SupabaseからISBN一覧を取得し、openBD APIから一括で詳細情報を補完
+  // SupabaseからISBN一覧を取得し、タイトル補完はopenBD、書影は版元ドットコムを使用
   async function fetchBooks() {
     const { data, error } = await supabase_client
       .from('books')
@@ -462,7 +437,6 @@
       booksData = data.map(book => {
         const item = bdMap[book.isbn];
         const summary = item ? item.summary : {};
-        const coverUrl = extractCoverUrl(item);
 
         return {
           id: book.id,
@@ -472,7 +446,7 @@
           title: summary.title || 'タイトル不明',
           author: summary.author || '',
           publisher: summary.publisher || '',
-          coverUrl: coverUrl
+          coverUrl: extractCoverUrl(book.isbn)
         };
       });
 
@@ -496,7 +470,7 @@
       if (data && data[0]) {
         const item = data[0];
         const summary = item.summary;
-        const coverUrl = extractCoverUrl(item);
+        const coverUrl = extractCoverUrl(isbn);
 
         document.getElementById('previewTitle').innerText = summary.title;
         document.getElementById('previewAuthor').innerText = `${summary.author} (${summary.publisher})`;
