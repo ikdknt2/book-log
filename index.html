@@ -268,14 +268,14 @@
   </div>
 
   <script>
-    // 1. Supabase の初期化（自身のプロジェクトURLとキーに差し替えてください）
+    // 1. Supabase の初期化（ご自身のURLとKEYに変更してください）
     const SUPABASE_URL = 'YOUR_SUPABASE_URL';
     const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
     const supabase_client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let booksData = [];
 
-    // HTMLエスケープヘルパー関数
+    // エスケープ処理
     function escapeHtml(str) {
       if (!str) return '';
       return String(str)
@@ -286,37 +286,13 @@
         .replace(/'/g, '&#39;');
     }
 
-    // 書影URL抽出関数（openBD + 版元ドットコム補完）
-    function extractCoverUrl(item, isbn) {
-      let url = null;
-
-      // 1. openBD の summary.cover から取得
-      if (item && item.summary && item.summary.cover) {
-        url = item.summary.cover;
-      } 
-      // 2. openBD の onix 内から取得
-      else if (item && item.onix && item.onix.CollateralDetail && item.onix.CollateralDetail.SupportingResource) {
-        const resources = item.onix.CollateralDetail.SupportingResource;
-        const coverRes = resources.find(r => r.ResourceContentType === "01" && r.ResourceVersion);
-        if (coverRes && coverRes.ResourceVersion[0] && coverRes.ResourceVersion[0].ResourceLink) {
-          url = coverRes.ResourceVersion[0].ResourceLink;
-        }
-      }
-
-      // 3. openBD内にURLがない場合、版元ドットコムの直リンクURLを生成
-      if (!url && isbn) {
-        url = `https://img.hanmoto.com/bd/img/${isbn}.jpg`;
-      }
-
-      // HTTP 通信の場合は HTTPS に自動調整
-      if (url) {
-        url = url.replace(/^http:\/\//, 'https://');
-      }
-
-      return url;
+    // ISBNから版元ドットコムの画像URLを直接生成
+    function getCoverUrl(isbn) {
+      if (!isbn) return null;
+      return `https://img.hanmoto.com/bd/img/${isbn}.jpg`;
     }
 
-    // 2. 本のデータ取得 (Supabase + openBD)
+    // 2. 本のデータ取得 (Supabase + openBDでタイトル/著者のみ補完)
     async function fetchBooks() {
       try {
         const { data, error } = await supabase_client
@@ -333,25 +309,22 @@
 
         const isbns = data.map(b => b.isbn).filter(Boolean);
 
-        // openBD API一括呼び出し
+        // openBD API（タイトルや著者情報のみ取得）
         const res = await fetch(`https://api.openbd.jp/v1/get?isbn=${isbns.join(',')}`);
         const openBdData = await res.json();
 
-        // 検索用マップの作成
         const bdMap = {};
         if (Array.isArray(openBdData)) {
           openBdData.forEach(item => {
             if (item && item.summary && item.summary.isbn) {
-              bdMap[item.summary.isbn] = item;
+              bdMap[item.summary.isbn] = item.summary;
             }
           });
         }
 
-        // DBデータとAPIデータの結合
+        // DBデータと結合（画像は直接生成）
         booksData = data.map(book => {
-          const item = bdMap[book.isbn];
-          const summary = item ? item.summary : {};
-          const coverUrl = extractCoverUrl(item, book.isbn);
+          const summary = bdMap[book.isbn] || {};
 
           return {
             id: book.id,
@@ -361,7 +334,7 @@
             title: summary.title || 'タイトル不明',
             author: summary.author || '',
             publisher: summary.publisher || '',
-            coverUrl: coverUrl
+            coverUrl: getCoverUrl(book.isbn)
           };
         });
 
@@ -371,7 +344,7 @@
       }
     }
 
-    // 3. 本棚の描画
+    // 3. 本棚の描画（画像エラー時は自動でダミー表示に切り替え）
     function renderBookshelf() {
       const container = document.getElementById('bookshelf');
       container.innerHTML = '';
@@ -386,8 +359,10 @@
         item.className = 'book-item';
         item.onclick = () => openDetailModal(book);
 
+        // onerrorで画像読み込み失敗時にテキストを表示
         const coverHtml = book.coverUrl 
-          ? `<img src="${escapeHtml(book.coverUrl)}" class="cover-image" alt="${escapeHtml(book.title)}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'dummy-cover\\'>${escapeHtml(book.title)}</div>';">`
+          ? `<img src="${escapeHtml(book.coverUrl)}" class="cover-image" alt="${escapeHtml(book.title)}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+             <div class="dummy-cover" style="display:none;">${escapeHtml(book.title)}</div>`
           : `<div class="dummy-cover">${escapeHtml(book.title)}</div>`;
 
         item.innerHTML = `
@@ -411,7 +386,8 @@
 
       const coverContainer = document.getElementById('detailCoverContainer');
       coverContainer.innerHTML = book.coverUrl 
-        ? `<img src="${escapeHtml(book.coverUrl)}" class="detail-cover" alt="${escapeHtml(book.title)}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'dummy-cover\\'>${escapeHtml(book.title)}</div>';">`
+        ? `<img src="${escapeHtml(book.coverUrl)}" class="detail-cover" alt="${escapeHtml(book.title)}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+           <div class="dummy-cover detail-cover" style="display:none;">${escapeHtml(book.title)}</div>`
         : `<div class="dummy-cover detail-cover">${escapeHtml(book.title)}</div>`;
 
       document.getElementById('detailModal').classList.add('active');
@@ -438,7 +414,6 @@
 
         if (error) throw error;
 
-        // フォームのリセットと一覧の更新
         document.getElementById('addBookForm').reset();
         await fetchBooks();
       } catch (e) {
@@ -447,7 +422,6 @@
       }
     });
 
-    // 初回ロード時のデータ取得
     window.addEventListener('DOMContentLoaded', fetchBooks);
   </script>
 </body>
