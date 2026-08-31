@@ -10,6 +10,7 @@
       --bg-color: #f4f1ea;
       --card-bg: #ffffff;
       --accent-color: #2e7d32;
+      --danger-color: #c62828;
       --text-color: #333333;
     }
 
@@ -71,6 +72,21 @@
       font-size: 0.95rem;
       cursor: pointer;
       font-weight: bold;
+    }
+
+    .btn-danger {
+      background-color: var(--danger-color);
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .btn-danger:hover {
+      background-color: #b71c1c;
     }
 
     .hidden {
@@ -277,6 +293,13 @@
       max-height: 150px;
       overflow-y: auto;
     }
+
+    .detail-actions {
+      margin-top: 15px;
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
   </style>
 </head>
 <body>
@@ -357,6 +380,41 @@
     </div>
   </div>
 
+  <!-- 本編集モーダル -->
+  <div class="modal-overlay" id="editModal">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeEditModal()">&times;</button>
+      <h2 style="margin-bottom: 15px;">本情報を編集</h2>
+      <form id="editBookForm" onsubmit="handleEditBook(event)">
+        <input type="hidden" id="editBookId">
+        <div class="form-group">
+          <label>タイトル</label>
+          <div id="editTitleText" style="font-weight: bold; margin-bottom: 10px;"></div>
+        </div>
+        <div class="form-group">
+          <label for="editRating">評価 (★1〜10)</label>
+          <select id="editRating">
+            <option value="10">★10 - 最高</option>
+            <option value="9">★9</option>
+            <option value="8">★8</option>
+            <option value="7">★7</option>
+            <option value="6">★6</option>
+            <option value="5">★5 - 普通</option>
+            <option value="4">★4</option>
+            <option value="3">★3</option>
+            <option value="2">★2</option>
+            <option value="1">★1</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="editReview">感想・メモ</label>
+          <textarea id="editReview" placeholder="感想など..."></textarea>
+        </div>
+        <button type="submit" class="btn-primary" style="width: 100%;">更新する</button>
+      </form>
+    </div>
+  </div>
+
   <!-- 詳細モーダル -->
   <div class="modal-overlay" id="detailModal">
     <div class="modal-content">
@@ -370,6 +428,10 @@
           <div class="detail-review" id="detailReview"></div>
         </div>
       </div>
+      <div class="detail-actions hidden" id="adminActions">
+        <button class="btn-secondary" onclick="openEditModal()">編集</button>
+        <button class="btn-danger" onclick="handleDeleteBook()">削除</button>
+      </div>
     </div>
   </div>
 
@@ -379,6 +441,7 @@
   const supabase_client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   let booksData = [];
+  let currentBook = null;
 
   window.onload = async () => {
     fetchBooks();
@@ -392,21 +455,21 @@
       document.getElementById('addBookBtn').classList.remove('hidden');
       document.getElementById('logoutBtn').classList.remove('hidden');
       document.getElementById('loginBtn').classList.add('hidden');
+      document.getElementById('adminActions').classList.remove('hidden');
     } else {
       document.getElementById('addBookBtn').classList.add('hidden');
       document.getElementById('logoutBtn').classList.add('hidden');
       document.getElementById('loginBtn').classList.remove('hidden');
+      document.getElementById('adminActions').classList.add('hidden');
     }
   }
 
-  // 版元ドットコムの直リンクURLを生成する関数（openBDの画像判定を使わない）
   function extractCoverUrl(isbn) {
     if (!isbn) return null;
     const cleanIsbn = isbn.toString().replace(/-/g, '').trim();
     return cleanIsbn ? `https://img.hanmoto.com/bd/img/${cleanIsbn}_600.jpg` : null;
   }
 
-  // SupabaseからISBN一覧を取得し、タイトル補完はopenBD、書影は版元ドットコムを使用
   async function fetchBooks() {
     const { data, error } = await supabase_client
       .from('books')
@@ -428,11 +491,13 @@
       const openBdData = await res.json();
 
       const bdMap = {};
-      openBdData.forEach(item => {
-        if (item && item.summary) {
-          bdMap[item.summary.isbn] = item;
-        }
-      });
+      if (openBdData) {
+        openBdData.forEach(item => {
+          if (item && item.summary) {
+            bdMap[item.summary.isbn] = item;
+          }
+        });
+      }
 
       booksData = data.map(book => {
         const item = bdMap[book.isbn];
@@ -456,7 +521,6 @@
     }
   }
 
-  // ISBNプレビュー検索
   async function lookupIsbn() {
     const rawIsbn = document.getElementById('isbn').value.trim();
     const isbn = rawIsbn.replace(/-/g, '');
@@ -490,7 +554,6 @@
     }
   }
 
-  // 本棚の描画
   function renderBookshelf() {
     const container = document.getElementById('bookshelf');
     container.innerHTML = '';
@@ -514,7 +577,6 @@
     });
   }
 
-  // 保存処理
   async function handleAddBook(event) {
     event.preventDefault();
 
@@ -551,7 +613,73 @@
     fetchBooks();
   }
 
-  // ログイン・ログアウト関連
+  // 編集モーダルの開閉と保存処理
+  function openEditModal() {
+    if (!currentBook) return;
+    document.getElementById('editBookId').value = currentBook.id;
+    document.getElementById('editTitleText').innerText = currentBook.title;
+    document.getElementById('editRating').value = currentBook.rating;
+    document.getElementById('editReview').value = currentBook.review || '';
+    
+    closeDetailModal();
+    document.getElementById('editModal').classList.add('active');
+  }
+
+  function closeEditModal() {
+    document.getElementById('editModal').classList.remove('active');
+  }
+
+  async function handleEditBook(event) {
+    event.preventDefault();
+    const id = document.getElementById('editBookId').value;
+    const rating = parseInt(document.getElementById('editRating').value);
+    const review = document.getElementById('editReview').value.trim();
+
+    const { error } = await supabase_client
+      .from('books')
+      .update({ rating: rating, review: review || null })
+      .eq('id', id);
+
+    if (error) {
+      alert('更新失敗: ' + error.message);
+      return;
+    }
+
+    closeEditModal();
+    fetchBooks();
+  }
+
+  // 確認用ISBN入力付きの削除処理
+  async function handleDeleteBook() {
+    if (!currentBook) return;
+
+    const targetIsbn = currentBook.isbn.replace(/-/g, '');
+    const inputIsbn = prompt(`誤削除防止のため、この本のISBNコードを入力してください。\n（対象: ${currentBook.title}\n  ISBN: ${targetIsbn}）`);
+
+    if (inputIsbn === null) return; // キャンセルされた場合
+
+    const cleanInputIsbn = inputIsbn.trim().replace(/-/g, '');
+
+    if (cleanInputIsbn !== targetIsbn) {
+      alert('ISBNコードが一致しません。削除をキャンセルしました。');
+      return;
+    }
+
+    const { error } = await supabase_client
+      .from('books')
+      .delete()
+      .eq('id', currentBook.id);
+
+    if (error) {
+      alert('削除失敗: ' + error.message);
+      return;
+    }
+
+    alert('削除が完了しました。');
+    closeDetailModal();
+    fetchBooks();
+  }
+
   async function handleLogin(e) {
     e.preventDefault();
     const { error } = await supabase_client.auth.signInWithPassword({
@@ -573,6 +701,7 @@
   function closeLoginModal() { document.getElementById('loginModal').classList.remove('active'); }
 
   function openDetailModal(book) {
+    currentBook = book;
     document.getElementById('detailTitle').innerText = book.title;
     document.getElementById('detailMeta').innerText = `${book.author} / ${book.publisher}`;
     document.getElementById('detailRating').innerText = `★ ${book.rating} / 10`;
@@ -586,7 +715,10 @@
     document.getElementById('detailModal').classList.add('active');
   }
 
-  function closeDetailModal() { document.getElementById('detailModal').classList.remove('active'); }
+  function closeDetailModal() { 
+    document.getElementById('detailModal').classList.remove('active'); 
+    currentBook = null;
+  }
 
   function escapeHtml(str) {
     if (!str) return '';
