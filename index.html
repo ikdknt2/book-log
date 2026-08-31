@@ -403,7 +403,7 @@
   function extractCoverUrl(isbn) {
     if (!isbn) return null;
     const cleanIsbn = isbn.toString().replace(/-/g, '').trim();
-    return cleanIsbn ? `https://cover.hanmoto.com/mqable/${cleanIsbn}.jpg` : null;
+    return cleanIsbn ? `https://img.hanmoto.com/bd/img/${cleanIsbn}_600.jpg` : null;
   }
 
   // SupabaseからISBN一覧を取得し、タイトル補完はopenBD、書影は版元ドットコムを使用
