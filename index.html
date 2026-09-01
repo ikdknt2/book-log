@@ -338,6 +338,13 @@
       display: flex;
       gap: 10px;
       justify-content: flex-end;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .admin-only-actions {
+      display: flex;
+      gap: 10px;
     }
   </style>
 </head>
@@ -346,7 +353,7 @@
   <header>
     <h1>📚 My Bookshelf</h1>
     <div class="header-buttons">
-      <button id="shareShelfBtn" class="btn-secondary" onclick="shareShelf()">🔗 共有</button>
+      <button id="shareShelfBtn" class="btn-secondary" onclick="shareShelf()">🔗 本棚を共有</button>
       <button id="myShelfBtn" class="btn-secondary hidden" onclick="goToMyShelf()">自分の本棚へ</button>
       <button id="addBookBtn" class="btn-primary hidden" onclick="openAddModal()">＋ 本を追加する</button>
       <button id="editProfileBtn" class="btn-secondary hidden" onclick="openProfileModal()">⚙️ ID変更</button>
@@ -518,9 +525,12 @@
           <div class="detail-review" id="detailReview"></div>
         </div>
       </div>
-      <div class="detail-actions hidden" id="adminActions">
-        <button class="btn-secondary" onclick="openEditModal()">編集</button>
-        <button class="btn-danger" onclick="handleDeleteBook()">削除</button>
+      <div class="detail-actions">
+        <button class="btn-secondary" onclick="shareBook()">🔗 この本を共有</button>
+        <div id="adminActions" class="admin-only-actions hidden">
+          <button class="btn-secondary" onclick="openEditModal()">編集</button>
+          <button class="btn-danger" onclick="handleDeleteBook()">削除</button>
+        </div>
       </div>
     </div>
   </div>
@@ -533,6 +543,7 @@
   let booksData = [];
   let currentBook = null;
   let targetParam = null;       // ?profile= または ?user= のパラメータ
+  let targetBookId = null;      // ?book= のパラメータ
   let targetUuid = null;        // 対象ユーザーのUUID
   let targetUsername = null;    // 対象ユーザーのusername
   let currentSessionUser = null;
@@ -548,6 +559,7 @@
 
     const urlParams = new URLSearchParams(window.location.search);
     targetParam = urlParams.get('profile') || urlParams.get('user');
+    targetBookId = urlParams.get('book');
 
     const { data: { session } } = await supabase_client.auth.getSession();
     currentSessionUser = session ? session.user : null;
@@ -558,13 +570,22 @@
 
     if (!targetParam && currentSessionUser) {
       targetParam = currentSessionUsername || currentSessionUser.id;
-      const newUrl = `${window.location.pathname}?profile=${targetParam}`;
+      const newUrl = `${window.location.pathname}?profile=${targetParam}${targetBookId ? '&book=' + targetBookId : ''}`;
       window.history.replaceState(null, '', newUrl);
     }
 
     await resolveTargetUser();
     updateUI();
-    fetchBooks();
+    await fetchBooks();
+
+    // ダイレクトアクセス（特定の個別本が開かれている場合）
+    if (targetBookId) {
+      const foundBook = booksData.find(b => String(b.id) === String(targetBookId));
+      if (foundBook) {
+        openDetailModal(foundBook);
+      }
+    }
+
     document.getElementById('isbn').addEventListener('blur', lookupIsbn);
   };
 
@@ -632,29 +653,48 @@
     }
   }
 
-  // 本棚の共有機能
+  // 本棚全体を共有
   async function shareShelf() {
     const shareText = 'マイ本棚をチェック！ 📚';
-    const shareUrl = window.location.href;
+    const baseUrl = window.location.origin + window.location.pathname;
+    const shareUrl = `${baseUrl}?profile=${targetUsername || targetParam || ''}`;
 
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: shareText,
-          text: shareText,
-          url: shareUrl
-        });
+        await navigator.share({ title: shareText, text: shareText, url: shareUrl });
       } catch (err) {
-        if (err.name !== 'AbortError') {
-          console.error('共有処理エラー:', err);
-        }
+        if (err.name !== 'AbortError') console.error('共有エラー:', err);
       }
     } else {
       try {
         await navigator.clipboard.writeText(shareUrl);
         alert('本棚のURLをクリップボードにコピーしました！');
       } catch (err) {
-        alert('URLのコピーに失敗しました。アドレスバーのURLを直接コピーしてください。');
+        alert('コピーに失敗しました。URLを直接コピーしてください。');
+      }
+    }
+  }
+
+  // 個別本を共有
+  async function shareBook() {
+    if (!currentBook) return;
+
+    const shareText = `『${currentBook.title}』をチェック！ 評価: ★${currentBook.rating}/10 📚`;
+    const baseUrl = window.location.origin + window.location.pathname;
+    const shareUrl = `${baseUrl}?profile=${targetUsername || targetParam || ''}&book=${currentBook.id}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: shareText, text: shareText, url: shareUrl });
+      } catch (err) {
+        if (err.name !== 'AbortError') console.error('共有エラー:', err);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+        alert('この本の紹介文と共有リンクをクリップボードにコピーしました！');
+      } catch (err) {
+        alert('コピーに失敗しました。URLを直接コピーしてください。');
       }
     }
   }
@@ -960,14 +1000,12 @@
     if (isSignUpMode) {
       const username = document.getElementById('regUsername').value.trim().toLowerCase();
 
-      // 重複チェック
       const { data: existing } = await supabase_client.from('profiles').select('username').eq('username', username).maybeSingle();
       if (existing) {
         alert('そのユーザーIDは既に使用されています。別のIDを指定してください。');
         return;
       }
 
-      // サインアップ（DBのトリガー関数が options.data.username を受け取って profiles に自動挿入します）
       const { data, error } = await supabase_client.auth.signUp({
         email: email,
         password: password,
