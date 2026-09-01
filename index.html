@@ -940,7 +940,7 @@
 
       const { data, error } = await supabase_client.auth.signUp({
         email: email,
-        password: password
+        password: password,
         options: {
           data: {
             username: username  // ← これを追加することで、入力したIDがDBへ正しく届きます！
