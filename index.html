@@ -48,6 +48,7 @@
       display: flex;
       gap: 10px;
       align-items: center;
+      flex-wrap: wrap;
     }
 
     .toolbar {
@@ -345,6 +346,7 @@
   <header>
     <h1>📚 My Bookshelf</h1>
     <div class="header-buttons">
+      <button id="shareShelfBtn" class="btn-secondary" onclick="shareShelf()">🔗 共有</button>
       <button id="myShelfBtn" class="btn-secondary hidden" onclick="goToMyShelf()">自分の本棚へ</button>
       <button id="addBookBtn" class="btn-primary hidden" onclick="openAddModal()">＋ 本を追加する</button>
       <button id="editProfileBtn" class="btn-secondary hidden" onclick="openProfileModal()">⚙️ ID変更</button>
@@ -627,6 +629,33 @@
       document.getElementById('shelfOwnerText').innerText = targetParam 
         ? `ユーザー (@${targetUsername}) の本棚`
         : '公開本棚（ユーザー未指定）';
+    }
+  }
+
+  // 本棚の共有機能
+  async function shareShelf() {
+    const shareText = 'マイ本棚をチェック！ 📚';
+    const shareUrl = window.location.href;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareText,
+          text: shareText,
+          url: shareUrl
+        });
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error('共有処理エラー:', err);
+        }
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        alert('本棚のURLをクリップボードにコピーしました！');
+      } catch (err) {
+        alert('URLのコピーに失敗しました。アドレスバーのURLを直接コピーしてください。');
+      }
     }
   }
 
