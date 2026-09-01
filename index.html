@@ -938,12 +938,13 @@
         return;
       }
 
+      // サインアップ（DBのトリガー関数が options.data.username を受け取って profiles に自動挿入します）
       const { data, error } = await supabase_client.auth.signUp({
         email: email,
         password: password,
         options: {
           data: {
-            username: username  // ← これを追加することで、入力したIDがDBへ正しく届きます！
+            username: username
           }
         }
       });
@@ -951,16 +952,6 @@
       if (error) {
         alert('登録失敗: ' + error.message);
         return;
-      }
-
-      if (data.user) {
-        const { error: profileError } = await supabase_client.from('profiles').insert([
-          { id: data.user.id, username: username }
-        ]);
-
-        if (profileError) {
-          console.error('プロフィール保存エラー:', profileError);
-        }
       }
 
       alert('仮登録が完了しました！\n入力されたメールアドレスに届いた確認リンクをクリック（またはそのままログイン）してください。');
