@@ -356,7 +356,7 @@
       <form id="authForm" onsubmit="handleAuth(event)">
         <div class="form-group hidden" id="usernameGroup">
           <label for="regUsername">希望するユーザーID (半角英数字)</label>
-          <input type="text" id="regUsername" placeholder="例: taro123" pattern="^[a-zA-Z0-9_-]+$" title="半角英数字・ハイフン・アンダースコアのみ使用可能です">
+          <input type="text" id="regUsername" placeholder="例: taro123" pattern="^[a-zA-Z0-9_\-]+$" title="半角英数字・ハイフン・アンダースコアのみ使用可能です">
         </div>
         <div class="form-group">
           <label for="loginEmail">メールアドレス</label>
@@ -382,7 +382,7 @@
       <form onsubmit="handleUpdateUsername(event)">
         <div class="form-group">
           <label for="newUsername">新しいユーザーID (半角英数字)</label>
-          <input type="text" id="newUsername" required pattern="^[a-zA-Z0-9_-]+$" title="半角英数字・ハイフン・アンダースコアのみ使用可能です">
+          <input type="text" id="newUsername" required pattern="^[a-zA-Z0-9_\-]+$" title="半角英数字・ハイフン・アンダースコアのみ使用可能です">
         </div>
         <button type="submit" class="btn-primary" style="width: 100%;">変更を保存</button>
       </form>
