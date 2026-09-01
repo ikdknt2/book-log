@@ -60,6 +60,23 @@
       border-radius: 8px;
       font-size: 0.85rem;
       color: #555;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .toolbar-controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-input, .toolbar-select {
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 0.85rem;
+      outline: none;
     }
 
     .size-slider-group {
@@ -338,10 +355,26 @@
 
   <div class="toolbar">
     <div id="shelfOwnerText">本棚を表示中...</div>
-    <div class="size-slider-group">
-      <label for="sizeRange">📖 表示サイズ:</label>
-      <input type="range" id="sizeRange" min="80" max="250" value="140" oninput="updateBookSize(this.value)">
-      <span id="sizeValue">140px</span>
+    
+    <div class="toolbar-controls">
+      <!-- 検索機能 -->
+      <input type="text" id="searchInput" class="toolbar-input" placeholder="タイトル・著者名で検索..." oninput="filterAndSortBooks()">
+      
+      <!-- 並び替え機能 -->
+      <select id="sortSelect" class="toolbar-select" onchange="filterAndSortBooks()">
+        <option value="created_desc">登録順 (新しい順)</option>
+        <option value="created_asc">登録順 (古い順)</option>
+        <option value="rating_desc">評価順 (高い順)</option>
+        <option value="rating_asc">評価順 (低い順)</option>
+        <option value="title_asc">タイトル順 (A-Z)</option>
+      </select>
+
+      <!-- 表示サイズ変更 -->
+      <div class="size-slider-group">
+        <label for="sizeRange">📖 表示サイズ:</label>
+        <input type="range" id="sizeRange" min="80" max="250" value="140" oninput="updateBookSize(this.value)">
+        <span id="sizeValue">140px</span>
+      </div>
     </div>
   </div>
 
@@ -349,6 +382,7 @@
     <div class="bookshelf" id="bookshelf"></div>
   </main>
 
+  <!-- ログイン / 登録 モーダル -->
   <div class="modal-overlay" id="loginModal">
     <div class="modal-content">
       <button class="modal-close" onclick="closeLoginModal()">&times;</button>
@@ -375,6 +409,7 @@
     </div>
   </div>
 
+  <!-- ユーザーID変更 モーダル -->
   <div class="modal-overlay" id="profileModal">
     <div class="modal-content">
       <button class="modal-close" onclick="closeProfileModal()">&times;</button>
@@ -389,6 +424,7 @@
     </div>
   </div>
 
+  <!-- 本追加 モーダル -->
   <div class="modal-overlay" id="addModal">
     <div class="modal-content">
       <button class="modal-close" onclick="closeAddModal()">&times;</button>
@@ -432,6 +468,7 @@
     </div>
   </div>
 
+  <!-- 本編集 モーダル -->
   <div class="modal-overlay" id="editModal">
     <div class="modal-content">
       <button class="modal-close" onclick="closeEditModal()">&times;</button>
@@ -466,6 +503,7 @@
     </div>
   </div>
 
+  <!-- 詳細 モーダル -->
   <div class="modal-overlay" id="detailModal">
     <div class="modal-content">
       <button class="modal-close" onclick="closeDetailModal()">&times;</button>
@@ -507,7 +545,6 @@
     }
 
     const urlParams = new URLSearchParams(window.location.search);
-    // ?profile= を優先し、なければ旧式の ?user= を取得
     targetParam = urlParams.get('profile') || urlParams.get('user');
 
     const { data: { session } } = await supabase_client.auth.getSession();
@@ -609,7 +646,7 @@
   async function fetchBooks() {
     if (!targetUuid && targetParam) {
       booksData = [];
-      renderBookshelf();
+      filterAndSortBooks();
       return;
     }
 
@@ -623,7 +660,7 @@
 
     if (error || !data) {
       booksData = [];
-      renderBookshelf();
+      filterAndSortBooks();
       return;
     }
 
@@ -631,7 +668,7 @@
 
     if (isbns.length === 0) {
       booksData = [];
-      renderBookshelf();
+      filterAndSortBooks();
       return;
     }
 
@@ -664,10 +701,63 @@
         };
       });
 
-      renderBookshelf();
+      filterAndSortBooks();
     } catch (e) {
       console.error('openBD取得エラー:', e);
     }
+  }
+
+  // 検索 & 並び替え 処理
+  function filterAndSortBooks() {
+    const query = document.getElementById('searchInput').value.toLowerCase().trim();
+    const sortVal = document.getElementById('sortSelect').value;
+
+    let filtered = booksData.filter(book => {
+      const titleMatch = book.title ? book.title.toLowerCase().includes(query) : false;
+      const authorMatch = book.author ? book.author.toLowerCase().includes(query) : false;
+      const reviewMatch = book.review ? book.review.toLowerCase().includes(query) : false;
+      return titleMatch || authorMatch || reviewMatch;
+    });
+
+    filtered.sort((a, b) => {
+      if (sortVal === 'created_desc') return b.id - a.id;
+      if (sortVal === 'created_asc') return a.id - b.id;
+      if (sortVal === 'rating_desc') return b.rating - a.rating;
+      if (sortVal === 'rating_asc') return a.rating - b.rating;
+      if (sortVal === 'title_asc') return a.title.localeCompare(b.title, 'ja');
+      return 0;
+    });
+
+    renderBookshelf(filtered);
+  }
+
+  // 本棚 描画関数
+  function renderBookshelf(displayList = booksData) {
+    const container = document.getElementById('bookshelf');
+    container.innerHTML = '';
+
+    if (displayList.length === 0) {
+      container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #888; padding: 40px 0;">該当する本が見つかりませんでした。</div>';
+      return;
+    }
+
+    displayList.forEach(book => {
+      const item = document.createElement('div');
+      item.className = 'book-item';
+      item.onclick = () => openDetailModal(book);
+
+      const coverHtml = book.coverUrl 
+        ? `<img src="${escapeHtml(book.coverUrl)}" class="cover-image" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'dummy-cover\'>${escapeHtml(book.title)}</div>';">`
+        : `<div class="dummy-cover">${escapeHtml(book.title)}</div>`;
+
+      item.innerHTML = `
+        <div class="cover-wrapper">${coverHtml}</div>
+        <div class="book-title-sub">${escapeHtml(book.title)}</div>
+        <div class="book-rating-sub">★ ${book.rating}/10</div>
+      `;
+
+      container.appendChild(item);
+    });
   }
 
   async function lookupIsbn() {
@@ -701,34 +791,6 @@
     } catch (err) {
       console.error(err);
     }
-  }
-
-  function renderBookshelf() {
-    const container = document.getElementById('bookshelf');
-    container.innerHTML = '';
-
-    if (booksData.length === 0) {
-      container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #888; padding: 40px 0;">まだ本が登録されていません。</div>';
-      return;
-    }
-
-    booksData.forEach(book => {
-      const item = document.createElement('div');
-      item.className = 'book-item';
-      item.onclick = () => openDetailModal(book);
-
-      const coverHtml = book.coverUrl 
-        ? `<img src="${escapeHtml(book.coverUrl)}" class="cover-image" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'dummy-cover\'>${escapeHtml(book.title)}</div>';">`
-        : `<div class="dummy-cover">${escapeHtml(book.title)}</div>`;
-
-      item.innerHTML = `
-        <div class="cover-wrapper">${coverHtml}</div>
-        <div class="book-title-sub">${escapeHtml(book.title)}</div>
-        <div class="book-rating-sub">★ ${book.rating}/10</div>
-      `;
-
-      container.appendChild(item);
-    });
   }
 
   async function handleAddBook(event) {
@@ -887,10 +949,16 @@
       }
 
       if (data.user) {
-        await supabase_client.from('profiles').insert([{ id: data.user.id, username: username }]);
+        const { error: profileError } = await supabase_client.from('profiles').insert([
+          { id: data.user.id, username: username }
+        ]);
+
+        if (profileError) {
+          console.error('プロフィール保存エラー:', profileError);
+        }
       }
 
-      alert('仮登録が完了しました！\n入力されたメールアドレスに届いた確認リンクをクリックしてからログインしてください。');
+      alert('仮登録が完了しました！\n入力されたメールアドレスに届いた確認リンクをクリック（またはそのままログイン）してください。');
       isSignUpMode = false;
       toggleAuthMode(e);
     } else {
