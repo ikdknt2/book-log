@@ -894,7 +894,7 @@
       isSignUpMode = false;
       toggleAuthMode(e);
     } else {
-      const { data, error } = await supabase_client.signInWithPassword({
+      const { data, error } = await supabase_client.auth.signInWithPassword({
         email: email,
         password: password
       });
